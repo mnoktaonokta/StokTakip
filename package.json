@@ -1,0 +1,42 @@
+{
+  "name": "stok-takip",
+  "version": "1.0.0",
+  "description": "Dental implant stock, transfer, barcode, lot, and invoicing platform (web + mobile + PWA).",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev:api & npm run dev:web",
+    "dev:web": "npm run dev --workspace web",
+    "dev:api": "npm run dev --workspace api",
+    "build": "npm run build:web && npm run build:api",
+    "build:web": "npm run build --workspace web",
+    "build:api": "npm run build --workspace api",
+    "lint": "npm run lint --workspace web",
+    "prisma:generate": "npm run prisma:generate --workspace api",
+    "prisma:sync": "npm run prisma:push --workspace api"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mnoktaonokta/StokTakip.git"
+  },
+  "keywords": [
+    "nextjs",
+    "express",
+    "prisma",
+    "supabase",
+    "inventory",
+    "pwa"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mnoktaonokta/StokTakip/issues"
+  },
+  "homepage": "https://github.com/mnoktaonokta/StokTakip#readme",
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "prisma": "5.22.0"
+  }
+}
