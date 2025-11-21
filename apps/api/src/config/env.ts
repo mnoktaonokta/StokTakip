@@ -1,6 +1,19 @@
 import * as dotenv from 'dotenv';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 
-dotenv.config();
+const candidateEnvFiles = [
+  resolve(process.cwd(), '.env'),
+  resolve(__dirname, '../../.env'),
+  resolve(__dirname, '../../../.env'),
+  resolve(__dirname, '../../../../.env'),
+];
+
+candidateEnvFiles.forEach((filePath) => {
+  if (existsSync(filePath)) {
+    dotenv.config({ path: filePath, override: false });
+  }
+});
 
 const requiredVars = ['DATABASE_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
 

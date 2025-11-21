@@ -1,6 +1,6 @@
-import { defineConfig } from '@prisma/client/runtime/library';
+import { defineConfig } from '@prisma/config';
 
-import '../src/config/env';
+import './src/config/env';
 
 export default defineConfig({
   datasource: {
