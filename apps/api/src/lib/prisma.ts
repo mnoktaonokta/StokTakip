@@ -9,6 +9,7 @@ export const prisma =
   globalThis.prisma ??
   new PrismaClient({
     log: ['error', 'warn'],
+    engineType: 'binary',
   });
 
 if (process.env.NODE_ENV !== 'production') {
