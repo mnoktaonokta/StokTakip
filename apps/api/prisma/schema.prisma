@@ -55,8 +55,12 @@ model Product {
   referenceCode String   @unique
   name          String
   category      String?
+  brand         String?
+  isActive      Boolean  @default(true)
+  criticalStockLevel Int?
   salePrice     Decimal? @db.Decimal(12, 2)
   purchasePrice Decimal? @db.Decimal(12, 2)
+  vatRate       Decimal? @db.Decimal(5, 2) @default(10)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -101,13 +105,29 @@ model Customer {
   name         String
   email        String?
   phone        String?
-  warehouseId  String    @unique
+  address      String?
+  taxOffice    String?
+  taxNumber    String?
+  logo         String?
+  warehouseId  String?   @unique
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
   invoices  Invoice[]
   logs      Log[]
+  notes     CustomerNote[]
+}
+
+model CustomerNote {
+  id         String   @id @default(cuid())
+  customerId String
+  content    String
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
 }
 
 model StockLocation {
@@ -144,6 +164,12 @@ model Transfer {
   invoices      Invoice[] @relation("InvoiceTransfers")
 }
 
+enum InvoiceDocumentType {
+  PROFORMA
+  IRSALIYE
+  FATURA
+}
+
 model Invoice {
   id            String    @id @default(cuid())
   customerId    String
@@ -153,6 +179,17 @@ model Invoice {
   totalAmount   Decimal?  @db.Decimal(12, 2)
   timestamp     DateTime  @default(now())
   createdById   String?
+  documentType  InvoiceDocumentType @default(FATURA)
+  documentNo    String?
+  issueDate     DateTime? @default(now())
+  dueDate       DateTime?
+  dispatchNo    String?
+  dispatchDate  DateTime?
+  notes         String?
+  grossTotal    Decimal?  @db.Decimal(12, 2)
+  discountTotal Decimal?  @db.Decimal(12, 2)
+  netTotal      Decimal?  @db.Decimal(12, 2)
+  taxTotal      Decimal?  @db.Decimal(12, 2)
 
   customer  Customer @relation(fields: [customerId], references: [id])
   createdBy User?    @relation("InvoiceCreatedBy", fields: [createdById], references: [id])

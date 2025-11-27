@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, WarehouseType } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
 
@@ -36,6 +36,25 @@ export const adjustStock = async ({ warehouseId, lotId, quantityDelta }: AdjustS
   return prisma.stockLocation.update({
     where: { id: location.id },
     data: { quantity: newQuantity },
+  });
+};
+
+export const assignLotToMainWarehouse = async (lotId: string, quantity: number) => {
+  if (quantity <= 0) {
+    return;
+  }
+
+  const mainWarehouse = await getMainWarehouse();
+
+  if (!mainWarehouse) {
+    console.warn('Ana depo bulunamadığı için lot stok kaydı yapılamadı.');
+    return;
+  }
+
+  await adjustStock({
+    warehouseId: mainWarehouse.id,
+    lotId,
+    quantityDelta: quantity,
   });
 };
 
@@ -93,4 +112,70 @@ export const autoSelectLot = async ({ productId, barcode }: AutoSelectLotParams)
   });
 
   return lots.at(0) ?? null;
+};
+
+const getMainWarehouse = async () => {
+  return prisma.warehouse.findFirst({
+    where: { type: WarehouseType.MAIN },
+    orderBy: { createdAt: 'asc' },
+  });
+};
+
+export const syncMainWarehouseStock = async () => {
+  const mainWarehouse = await getMainWarehouse();
+
+  if (!mainWarehouse) {
+    console.warn('Ana depo bulunamadı; stok senkronizasyonu atlandı.');
+    return { updatedLots: 0 };
+  }
+
+  const lots = await prisma.lot.findMany({
+    select: {
+      id: true,
+      quantity: true,
+      stockLocations: {
+        select: {
+          quantity: true,
+        },
+      },
+    },
+  });
+
+  let updatedLots = 0;
+
+  for (const lot of lots) {
+    const trackedQuantity = lot.stockLocations.reduce((sum, location) => sum + location.quantity, 0);
+    const untrackedQuantity = lot.quantity - trackedQuantity;
+
+    if (untrackedQuantity <= 0) {
+      continue;
+    }
+
+    await prisma.stockLocation.upsert({
+      where: {
+        warehouseId_lotId: {
+          warehouseId: mainWarehouse.id,
+          lotId: lot.id,
+        },
+      },
+      create: {
+        warehouseId: mainWarehouse.id,
+        lotId: lot.id,
+        quantity: untrackedQuantity,
+      },
+      update: {
+        quantity: {
+          increment: untrackedQuantity,
+        },
+      },
+    });
+
+    updatedLots += 1;
+  }
+
+  if (updatedLots > 0) {
+    console.log(`🔄 Ana depo stok senkronizasyonu: ${updatedLots} lot için eksik stok kaydı güncellendi.`);
+  }
+
+  return { updatedLots };
 };

@@ -1,31 +1,27 @@
 import { UserButton } from '@clerk/nextjs';
 import { currentUser } from '@clerk/nextjs/server';
-import { apiFetch } from '@/lib/api-client';
-import type { ActivityLog, Invoice, ProductSummary, Transfer } from '@/types/api';
+import { apiFetch as apiFetchServer } from '@/lib/api-client/server';
+import type { ActivityLog, Invoice, ProductSummary } from '@/types/api';
 
 const getDashboardData = async () => {
   // Not: Backend henüz Clerk token'ını doğrulayamayabilir, 
   // bu yüzden fetch hatalarını yakalamak için try-catch bloğuna alabiliriz.
   try {
-    const [products, transfers, invoices, logs] = await Promise.all([
-      apiFetch<ProductSummary[]>('/api/products'),
-      apiFetch<Transfer[]>('/api/transfers?limit=10'),
-      apiFetch<Invoice[]>('/api/invoices'),
-      apiFetch<ActivityLog[]>('/api/logs'),
+    const [products, invoices, logs] = await Promise.all([
+      apiFetchServer<ProductSummary[]>('/api/products'),
+      apiFetchServer<Invoice[]>('/api/invoices'),
+      apiFetchServer<ActivityLog[]>('/api/logs'),
     ]);
 
     const totalStock = products.reduce((sum, product) => sum + product.totalQuantity, 0);
-    const pendingTransfers = transfers.filter((transfer) => transfer.status === 'PENDING').length;
 
     return {
       products,
-      transfers,
       invoices,
       logs: logs.slice(0, 6),
       metrics: {
         totalProducts: products.length,
         totalStock,
-        pendingTransfers,
         invoicesToday: invoices.filter((invoice) => new Date(invoice.timestamp).toDateString() === new Date().toDateString())
           .length,
       },
@@ -35,10 +31,9 @@ const getDashboardData = async () => {
     // Hata durumunda boş veri dönelim ki sayfa patlamasın
     return {
       products: [],
-      transfers: [],
       invoices: [],
       logs: [],
-      metrics: { totalProducts: 0, totalStock: 0, pendingTransfers: 0, invoicesToday: 0 }
+      metrics: { totalProducts: 0, totalStock: 0, invoicesToday: 0 }
     };
   }
 };
@@ -48,7 +43,7 @@ export default async function DashboardPage() {
   const user = await currentUser();
   
   // API'den verileri al
-  const { metrics, products, transfers, logs } = await getDashboardData();
+  const { metrics, products, invoices, logs } = await getDashboardData();
 
   return (
     <div className="space-y-8 p-6 min-h-screen bg-slate-950 text-white">
@@ -70,14 +65,13 @@ export default async function DashboardPage() {
       </div>
       {/* ---------------------------------- */}
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[
           { label: 'Toplam Ürün', value: metrics.totalProducts },
           { label: 'Toplam Stok', value: metrics.totalStock },
-          { label: 'Bekleyen Transfer', value: metrics.pendingTransfers },
           { label: 'Bugünkü Fatura', value: metrics.invoicesToday },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 shadow-lg shadow-black/10">
+          <div key={stat.label} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 text-center shadow-lg shadow-black/10">
             <p className="text-sm text-slate-400">{stat.label}</p>
             <p className="mt-2 text-3xl font-semibold text-white">{stat.value}</p>
           </div>
@@ -108,22 +102,25 @@ export default async function DashboardPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-          <h2 className="text-lg font-semibold text-white">Bekleyen Transferler</h2>
+          <h2 className="text-lg font-semibold text-white">Son Faturalar</h2>
           <div className="mt-4 space-y-3">
-            {transfers.length === 0 ? (
-                 <p className="text-sm text-slate-500">Bekleyen transfer yok.</p>
+            {invoices.length === 0 ? (
+              <p className="text-sm text-slate-500">Henüz fatura kaydı yok.</p>
             ) : (
-                transfers
-                .filter((transfer) => transfer.status === 'PENDING')
-                .slice(0, 5)
-                .map((transfer) => (
-                    <div key={transfer.id} className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                    <p className="font-medium">{transfer.lot.product.name}</p>
-                    <p className="text-xs text-amber-200">
-                        {transfer.quantity} adet • Lot {transfer.lot.lotNumber}
+              invoices.slice(0, 5).map((invoice) => (
+                <div key={invoice.id} className="flex items-center justify-between rounded-xl border border-slate-800/60 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{invoice.customer.name}</p>
+                    <p className="text-xs text-slate-400">{invoice.invoiceNumber ?? invoice.id}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-emerald-300">
+                      {Number(invoice.totalAmount ?? 0).toLocaleString('tr-TR')} ₺
                     </p>
-                    </div>
-                ))
+                    <p className="text-xs text-slate-500">{new Date(invoice.timestamp).toLocaleDateString('tr-TR')}</p>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>

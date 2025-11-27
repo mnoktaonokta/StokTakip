@@ -1,4 +1,4 @@
-import { ActionType } from '@prisma/client';
+import { ActionType, Prisma } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
 
@@ -16,10 +16,27 @@ interface LogPayload {
 }
 
 export const recordLog = async (payload: LogPayload) => {
-  return prisma.log.create({
-    data: {
-      ...payload,
-      barcodeUsed: payload.barcodeUsed ?? false,
-    },
-  });
+  try {
+    return await prisma.log.create({
+      data: {
+        ...payload,
+        barcodeUsed: payload.barcodeUsed ?? false,
+      },
+    });
+  } catch (error) {
+    if (
+      payload.invoiceId &&
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2003'
+    ) {
+      const fallbackPayload = { ...payload, invoiceId: undefined };
+      return prisma.log.create({
+        data: {
+          ...fallbackPayload,
+          barcodeUsed: fallbackPayload.barcodeUsed ?? false,
+        },
+      });
+    }
+    throw error;
+  }
 };

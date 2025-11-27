@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch } from '@/lib/api-client/client';
 import type { ActivityLog } from '@/types/api';
 
 const actionTypes = [

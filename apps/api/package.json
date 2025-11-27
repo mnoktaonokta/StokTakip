@@ -4,7 +4,7 @@
   "description": "Express + Prisma backend for dental implant stock, transfer, and invoicing",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev": "ts-node-dev -r dotenv/config --respawn --transpile-only src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "echo \"Add ESLint config\"",

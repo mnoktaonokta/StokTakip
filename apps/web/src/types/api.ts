@@ -2,9 +2,13 @@ export interface ProductSummary {
   id: string;
   referenceCode: string;
   name: string;
+  brand?: string | null;
   category?: string | null;
   salePrice?: number | null;
   purchasePrice?: number | null;
+  vatRate?: number | null;
+  isActive: boolean;
+  criticalStockLevel?: number | null;
   totalQuantity: number;
   lots: Lot[];
 }
@@ -30,6 +34,7 @@ export interface WarehouseWithStock extends Warehouse {
     quantity: number;
     lot: Lot & { product: ProductSummary };
   }>;
+  customers?: Customer[];
 }
 
 export interface StockLocation {
@@ -51,12 +56,32 @@ export interface Transfer {
   timestamp: string;
 }
 
+export interface CustomerInvoiceSummary {
+  id: string;
+  totalAmount?: number | null;
+  timestamp: string;
+  invoiceNumber?: string | null;
+}
+
 export interface Customer {
   id: string;
   name: string;
   email?: string | null;
   phone?: string | null;
-  warehouseId: string;
+  address?: string | null;
+  taxOffice?: string | null;
+  taxNumber?: string | null;
+  logo?: string | null;
+  warehouseId?: string | null;
+  warehouse?: WarehouseWithStock | null;
+  invoices?: CustomerInvoiceSummary[];
+  notes?: CustomerNote[];
+}
+
+export interface CustomerNote {
+  id: string;
+  content: string;
+  createdAt: string;
 }
 
 export interface Invoice {
@@ -65,6 +90,8 @@ export interface Invoice {
   customer: Customer;
   totalAmount?: number | null;
   timestamp: string;
+  documentType?: 'PROFORMA' | 'IRSALIYE' | 'FATURA';
+  documentNo?: string | null;
 }
 
 export interface ActivityLog {

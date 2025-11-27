@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
 
-import { apiFetch } from '../lib/api-client';
+import { apiFetch } from '../lib/api-client/client';
 
 export const useApiQuery = <TData>(
   key: string[],

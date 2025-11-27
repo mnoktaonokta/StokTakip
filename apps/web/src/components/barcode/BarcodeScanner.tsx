@@ -39,7 +39,6 @@ export function BarcodeScanner({ onDetected }: Props) {
 
     return () => {
       controlsRef.current?.stop();
-      reader.reset();
     };
   }, [onDetected]);
 

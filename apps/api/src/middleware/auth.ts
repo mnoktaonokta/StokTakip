@@ -1,77 +1,90 @@
-import { clerkMiddleware } from '@clerk/express';
-import type { NextFunction, Request, Response } from 'express';
-import { UserRole } from '@prisma/client';
+import { clerkClient, clerkMiddleware } from '@clerk/express';
+import { PrismaClient, UserRole } from '@prisma/client';
+import type { Request, Response, NextFunction } from 'express';
+import { env } from '../config/env';
 
-import { prisma } from '../lib/prisma';
+const prisma = new PrismaClient();
 
-// GÜNCELLEME: Eski fonksiyon yerine yeni middleware kullanıldı
-export const clerkAuthMiddleware = clerkMiddleware();
+// 1. Clerk Middleware: Token doğrulamasını yapar
+export const clerkAuthMiddleware = clerkMiddleware({
+  publishableKey: env.clerkPublishableKey,
+  secretKey: env.clerkSecretKey,
+});
 
-const FALLBACK_EMAIL = 'dev@stoktakip.local';
+// 2. Kullanıcı Eşitleme: Clerk'ten gelen veriyi veritabanımızla senkronize eder
+type AuthState =
+  | {
+      userId: string;
+      sessionClaims?: Record<string, unknown>;
+    }
+  | undefined
+  | null;
 
-const getRoleFromHeader = (req: Request): UserRole => {
-  const header = (req.header('x-user-role') ?? 'employee').toLowerCase();
-  return header === 'admin' ? UserRole.admin : UserRole.employee;
+const resolveAuthState = (req: Request): AuthState => {
+  const rawAuth = (req as any).auth;
+  if (!rawAuth) return undefined;
+  return typeof rawAuth === 'function' ? rawAuth() : rawAuth;
 };
 
 export const attachCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const emailFromHeader = req.header('x-user-email');
-    const nameFromHeader = req.header('x-user-name');
+    const authState = resolveAuthState(req);
 
-    // Clerk auth objesi var mı ve kullanıcı giriş yapmış mı kontrolü
-    if (req.auth?.userId) {
-      const email =
-        (req.auth.sessionClaims?.email as string | undefined) ??
-        emailFromHeader ??
-        `${req.auth.userId}@stoktakip.app`;
-
-      const user = await prisma.user.upsert({
-        where: { email },
-        create: {
-          email,
-          name: (req.auth.sessionClaims?.fullName as string | undefined) ?? nameFromHeader ?? 'Clerk User',
-          role:
-            ((req.auth.sessionClaims?.role as string | undefined)?.toLowerCase() as UserRole | undefined) ??
-            getRoleFromHeader(req),
-        },
-        update: {
-          name: (req.auth.sessionClaims?.fullName as string | undefined) ?? nameFromHeader ?? undefined,
-        },
-      });
-
-      req.currentUser = { id: user.id, email: user.email, name: user.name, role: user.role };
+    // Token yoksa (Anonim istek) devam et, yetki hatasını route handler verir
+    if (!authState?.userId) {
+      console.warn('🎫 Token Durumu: YOK – frontend Auth header göndermiyor.');
       return next();
     }
 
-    // Production ortamında giriş yapılmamışsa hata ver
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ message: 'Yetkilendirme başarısız' });
+    const { userId, sessionClaims } = authState;
+    
+    // Clerk'ten gelen bilgileri alalım
+    let email = sessionClaims?.email as string | undefined;
+    let name = sessionClaims?.fullName as string | undefined;
+
+    // Eğer Token içinde e-posta yoksa (Clerk varsayılanı), API'den çekmeye çalış
+    if (!email) {
+        try {
+            const clerkUser = await clerkClient.users.getUser(userId);
+            email = clerkUser.emailAddresses[0]?.emailAddress;
+            name = `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || name;
+        } catch (apiError) {
+            console.error('Clerk API kullanıcı çekme hatası:', apiError);
+        }
     }
 
-    // Development ortamı için "Fallback" (Yedek) kullanıcı mantığı
-    const fallbackUser = await prisma.user.upsert({
-      where: { email: emailFromHeader ?? FALLBACK_EMAIL },
+    // Hala email yoksa fallback kullan (Sistemin kilitlenmemesi için)
+    if (!email) {
+        console.warn(`⚠️ Kullanıcı (${userId}) için e-posta bulunamadı.`);
+        console.warn('🎫 Token Durumu: VAR fakat email okunamadı. Clerk key/claim ayarlarını kontrol et.');
+        return next();
+    }
+
+    // Email'i normalize et (Küçük harf)
+    const normalizedEmail = email.toLowerCase();
+
+    console.log(`🔍 Auth Kontrolü: ${normalizedEmail} (ClerkID: ${userId})`);
+
+    // Veritabanında kullanıcıyı bulmaya çalış veya oluştur
+    const user = await prisma.user.upsert({
+      where: { email: normalizedEmail },
+      update: { name }, // İsim güncelse yenile
       create: {
-        email: emailFromHeader ?? FALLBACK_EMAIL,
-        name: nameFromHeader ?? 'Dev Admin',
-        role: getRoleFromHeader(req),
-      },
-      update: {
-        name: nameFromHeader ?? undefined,
-        role: getRoleFromHeader(req),
+        email: normalizedEmail,
+        name: name || 'Kullanıcı',
+        // 'admin' kelimesi içeren mailleri otomatik admin yap (Geliştirme kolaylığı)
+        role: normalizedEmail.includes('admin') ? UserRole.admin : UserRole.employee,
       },
     });
 
-    req.currentUser = {
-      id: fallbackUser.id,
-      email: fallbackUser.email,
-      name: fallbackUser.name,
-      role: fallbackUser.role,
-    };
+    // Request nesnesine "currentUser"ı ekle
+    (req as any).currentUser = user;
+    console.log(`✅ Yetkilendirildi: ${user.name} - Rol: ${user.role}`);
 
-    return next();
+    next();
   } catch (error) {
-    return next(error);
+    console.error('❌ Clerk/DB eşitleme sırasında hata:', error);
+    console.error('🎫 Token Durumu: VAR ama 👤 Clerk Auth: Bulunamadı -> Secret Key / Clerk ayarlarını doğrula.');
+    next();
   }
 };

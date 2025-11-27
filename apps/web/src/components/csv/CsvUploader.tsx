@@ -3,6 +3,8 @@
 import { ChangeEvent, useState } from 'react';
 import { toast } from 'sonner';
 
+import { API_URL, DEV_USER_ID } from '@/lib/api-client';
+
 export function CsvUploader() {
   const [warehouseId, setWarehouseId] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -24,10 +26,11 @@ export function CsvUploader() {
       formData.append('file', file);
       formData.append('warehouseId', warehouseId);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/csv/upload`, {
+      const response = await fetch(`${API_URL}/api/csv/upload`, {
         method: 'POST',
         headers: {
           'x-user-role': 'admin',
+          'x-user-id': DEV_USER_ID,
         },
         body: formData,
       });

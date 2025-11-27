@@ -12,31 +12,40 @@ router.get('/', async (_req, res) => {
     include: {
       warehouse: true,
       invoices: true,
+      notes: {
+        orderBy: { createdAt: 'desc' },
+      },
     },
   });
   return res.json(customers);
 });
 
 const createCustomerSchema = z.object({
-  name: z.string(),
+  name: z.string().min(1, 'Müşteri adı zorunlu'),
   email: z.string().email().optional(),
   phone: z.string().optional(),
+  address: z.string().optional(),
+  taxOffice: z.string().optional(),
+  taxNumber: z.string().optional(),
+  logo: z.string().optional(),
 });
 
 router.post('/', requireAdmin, async (req, res, next) => {
   try {
     const body = createCustomerSchema.parse(req.body);
-    const warehouse = await prisma.warehouse.create({
-      data: {
-        name: `Müşteri Deposu: ${body.name}`,
-        type: WarehouseType.CUSTOMER,
-      },
-    });
 
     const customer = await prisma.customer.create({
       data: {
-        ...body,
-        warehouseId: warehouse.id,
+        name: body.name,
+        email: body.email,
+        phone: body.phone,
+        address: body.address,
+        taxOffice: body.taxOffice,
+        taxNumber: body.taxNumber,
+        logo: body.logo,
+      },
+      include: {
+        warehouse: true,
       },
     });
 
@@ -65,6 +74,9 @@ router.get('/:customerId/depot', async (req, res, next) => {
           },
         },
         invoices: true,
+        notes: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -73,6 +85,37 @@ router.get('/:customerId/depot', async (req, res, next) => {
     }
 
     return res.json(customer);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+const noteSchema = z.object({
+  content: z.string().min(1, 'Not içeriği zorunlu'),
+});
+
+router.get('/:customerId/notes', async (req, res, next) => {
+  try {
+    const notes = await prisma.customerNote.findMany({
+      where: { customerId: req.params.customerId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json(notes);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/:customerId/notes', requireAdmin, async (req, res, next) => {
+  try {
+    const body = noteSchema.parse(req.body);
+    const note = await prisma.customerNote.create({
+      data: {
+        customerId: req.params.customerId,
+        content: body.content,
+      },
+    });
+    return res.status(201).json(note);
   } catch (error) {
     return next(error);
   }

@@ -3,8 +3,9 @@ import cors from 'cors';
 import morgan from 'morgan';
 
 import { env } from './config/env';
-import { clerkAuthMiddleware, attachCurrentUser } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
+import { clerkAuthMiddleware, attachCurrentUser } from './middleware/auth';
+import { syncMainWarehouseStock } from './services/stockService';
 
 import productRouter from './routes/products';
 import warehouseRouter from './routes/warehouses';
@@ -13,9 +14,14 @@ import invoiceRouter from './routes/invoices';
 import customerRouter from './routes/customers';
 import logRouter from './routes/logs';
 import csvRouter from './routes/csv';
+import lotRouter from './routes/lots';
 
 export const createServer = () => {
   const app = express();
+
+  syncMainWarehouseStock().catch((error) => {
+    console.error('Ana depo stok senkronizasyonu başarısız:', error);
+  });
 
   app.use(
     cors({
@@ -44,6 +50,7 @@ export const createServer = () => {
   app.use('/api/customers', customerRouter);
   app.use('/api/logs', logRouter);
   app.use('/api/csv', csvRouter);
+  app.use('/api/lots', lotRouter);
 
   app.use(errorHandler);
 
