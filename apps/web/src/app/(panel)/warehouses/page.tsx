@@ -1,9 +1,10 @@
 'use client'; // <--- BU SATIR ÇOK ÖNEMLİ (Etkileşim için şart)
 
-import { UserButton } from '@clerk/nextjs';
+import { ClerkLoaded, UserButton } from '@clerk/nextjs';
 import { apiFetch } from '@/lib/api-client/client';
 import { WarehouseForm } from '@/components/warehouses/WarehouseForm';
 import { WarehouseStockEditor } from '@/components/warehouses/WarehouseStockEditor';
+import { LogModal } from '@/components/logs/LogModal';
 import type { WarehouseWithStock } from '@/types/api';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -20,10 +21,32 @@ export default function WarehousesPage() {
   const [editType, setEditType] = useState<WarehouseWithStock['type']>('MAIN');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [removingStockId, setRemovingStockId] = useState<string | null>(null);
+  const [stockAdjustments, setStockAdjustments] = useState<Record<string, string>>({});
+  const [updatingStockId, setUpdatingStockId] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<Record<string, { checked: boolean; quantity: number }>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredWarehouses, setFilteredWarehouses] = useState<WarehouseWithStock[]>([]);
+  const [logContext, setLogContext] = useState<{ title: string; filter: { warehouseId: string } } | null>(null);
+  const normalizeForCompare = (value?: string | null) => {
+    if (!value) return '';
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/İ/g, 'I')
+      .replace(/ı/g, 'i')
+      .toLowerCase()
+      .trim();
+  };
+
+  const getCategoryPriority = (category?: string | null) => {
+    if (!category) return 3;
+    const normalized = category.toLowerCase();
+    if (normalized.includes('implant')) return 0;
+    if (normalized.includes('abut')) return 1;
+    if (normalized.includes('ara') || normalized.includes('parça') || normalized.includes('piece')) return 2;
+    return 3;
+  };
+
   const currencyFormatter = useMemo(
     () =>
       new Intl.NumberFormat('tr-TR', {
@@ -141,34 +164,64 @@ export default function WarehousesPage() {
     }
   };
 
-  const handleStockDelete = async (stockLocationId: string) => {
+  const handleStockQuantityChange = (locationId: string, value: string) => {
+    if (!/^\d*$/.test(value)) {
+      return;
+    }
+    setStockAdjustments((prev) => ({
+      ...prev,
+      [locationId]: value,
+    }));
+  };
+
+  const handleStockReduce = async (location: WarehouseWithStock['stockLocations'][number]) => {
     if (!selectedWarehouse) return;
-    const confirmDelete = window.confirm('Bu stok satırını silmek istediğine emin misin?');
-    if (!confirmDelete) return;
+    const rawValue = stockAdjustments[location.id] ?? '';
+    const quantity = Number(rawValue);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      toast.error('Çıkarılacak geçerli bir miktar girin');
+      return;
+    }
+
+    if (quantity > location.quantity) {
+      toast.error('Depoda mevcut olandan daha fazla çıkarılamaz');
+      return;
+    }
+
     try {
-      setRemovingStockId(stockLocationId);
-      await apiFetch(`/api/warehouses/${selectedWarehouse.id}/stock/${stockLocationId}`, {
-        method: 'DELETE',
+      setUpdatingStockId(location.id);
+      await apiFetch(`/api/warehouses/${selectedWarehouse.id}/stock`, {
+        method: 'POST',
+        body: { lotId: location.lot.id, quantity, mode: 'remove' },
       });
-      toast.success('Stok satırı silindi');
+      toast.success('Stok güncellendi');
+      setStockAdjustments((prev) => ({
+        ...prev,
+        [location.id]: `${location.quantity - quantity}`,
+      }));
       loadWarehouses();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Stok satırı silinemedi');
+      toast.error(error instanceof Error ? error.message : 'Stok güncellenemedi');
     } finally {
-      setRemovingStockId(null);
+      setUpdatingStockId(null);
     }
   };
 
   useEffect(() => {
     if (!selectedWarehouse) {
       setSelectedStock({});
+      setStockAdjustments({});
       return;
     }
     const initial: Record<string, { checked: boolean; quantity: number }> = {};
+    const adjustments: Record<string, string> = {};
     selectedWarehouse.stockLocations.forEach((location) => {
       initial[location.id] = { checked: false, quantity: location.quantity };
+      adjustments[location.id] = `${location.quantity}`;
     });
     setSelectedStock(initial);
+    setStockAdjustments(adjustments);
   }, [selectedWarehouse]);
 
   const handleToggleStock = (locationId: string, checked: boolean) => {
@@ -260,7 +313,9 @@ export default function WarehousesPage() {
             >
                 + Yeni Depo Ekle
             </button>
-            <UserButton afterSignOutUrl="/sign-in" />
+            <ClerkLoaded>
+              <UserButton afterSignOutUrl="/sign-in" />
+            </ClerkLoaded>
         </div>
       </header>
 
@@ -305,12 +360,25 @@ export default function WarehousesPage() {
                   ID: <span className="font-mono">{selectedWarehouse.id}</span>
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedWarehouse(null)}
-                className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white"
-              >
-                Kapat
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() =>
+                    setLogContext({
+                      title: `${selectedWarehouse.name} - Loglar`,
+                      filter: { warehouseId: selectedWarehouse.id },
+                    })
+                  }
+                  className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white"
+                >
+                  Loglar
+                </button>
+                <button
+                  onClick={() => setSelectedWarehouse(null)}
+                  className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white"
+                >
+                  Kapat
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4 overflow-y-auto pr-1">
@@ -422,9 +490,28 @@ export default function WarehousesPage() {
                         </thead>
                         <tbody>
                           {selectedWarehouse.stockLocations
+                            .filter((location) => location.quantity > 0)
                             .slice()
-                            .sort((a, b) => b.quantity - a.quantity)
+                            .sort((a, b) => {
+                              const priorityDiff =
+                                getCategoryPriority(a.lot.product.category) - getCategoryPriority(b.lot.product.category);
+                              if (priorityDiff !== 0) {
+                                return priorityDiff;
+                              }
+                              return a.lot.product.name.localeCompare(b.lot.product.name, 'tr');
+                            })
                             .map((location) => {
+                              const rawCategory = location.lot.product.category
+                                ? location.lot.product.category.replace(/^[\s.\-_/•·]+/, '').trimStart()
+                                : null;
+
+                              let formattedProductName = location.lot.product.name ?? '';
+                              formattedProductName = formattedProductName
+                                .replace(/^[\s.\-_/•·]+/, '')
+                                .replace(/[•·]/g, ' ')
+                                .replace(/\s*\.(?=\S)/g, ' ')
+                                .replace(/\s+/g, ' ')
+                                .trim();
                               const unitPrice = Number(location.lot.product.salePrice ?? 0);
                               const totalValue = unitPrice * location.quantity;
                               const selection = selectedStock[location.id];
@@ -438,24 +525,41 @@ export default function WarehousesPage() {
                                         onChange={(event) => handleToggleStock(location.id, event.target.checked)}
                                       />
                                       <div>
-                                        <p className="font-medium text-white">{location.lot.product.name}</p>
-                                        <p className="text-xs text-slate-500">
-                                          Lot {location.lot.lotNumber} • Ref {location.lot.product.referenceCode}
+                                        <p className="font-medium text-white text-left">{formattedProductName}</p>
+                                        {rawCategory ? (
+                                          <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                                            {rawCategory}
+                                          </p>
+                                        ) : null}
+                                        <p className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
+                                          <span>Lot {location.lot.lotNumber}</span>
+                                          <span className="text-[11px] text-slate-400">
+                                            Ref {location.lot.product.referenceCode}
+                                          </span>
                                         </p>
                                       </div>
                                     </div>
                                   </td>
-                                  <td className="px-2 py-3 text-center">
+                                  <td className="px-2 py-3">
+                                    <div className="flex items-center justify-end gap-3">
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={location.quantity}
+                                        value={stockAdjustments[location.id] ?? ''}
+                                        onChange={(event) => handleStockQuantityChange(location.id, event.target.value)}
+                                        className="w-16 rounded-full border border-slate-700/60 bg-slate-900/60 px-3 py-1 text-xs text-white text-right"
+                                      />
                                     <button
                                       type="button"
-                                      onClick={() => handleStockDelete(location.id)}
-                                      disabled={removingStockId === location.id}
-                                      className="rounded-full border border-rose-500/40 bg-rose-600/80 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                        onClick={() => handleStockReduce(location)}
+                                        disabled={updatingStockId === location.id}
+                                        className="rounded-full bg-amber-400/90 px-5 py-1 text-xs font-semibold text-slate-900 shadow-inner shadow-amber-600/30 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 whitespace-nowrap"
                                     >
-                                      {removingStockId === location.id ? 'Siliniyor...' : '×'}
+                                        {updatingStockId === location.id ? 'Çıkarılıyor' : 'Çıkar'}
                                     </button>
+                                    </div>
                                   </td>
-                                  <td className="px-4 py-3 text-right text-cyan-300">{location.quantity}</td>
                                   <td className="px-4 py-3 text-right text-cyan-300">{location.quantity}</td>
                                   <td className="px-4 py-3 text-right">
                                     {unitPrice > 0 ? currencyFormatter.format(unitPrice) : '—'}
@@ -547,6 +651,13 @@ export default function WarehousesPage() {
             )}
           </div>
         </div>
+      )}
+      {logContext && (
+        <LogModal
+          title={logContext.title}
+          filter={logContext.filter}
+          onClose={() => setLogContext(null)}
+        />
       )}
     </div>
   );

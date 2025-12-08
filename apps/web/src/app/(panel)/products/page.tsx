@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { UserButton } from '@clerk/nextjs';
+import { ClerkLoaded, UserButton } from '@clerk/nextjs';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Search } from 'lucide-react';
 
@@ -71,12 +71,15 @@ export default function ProductsPage() {
 
   const handleProductUpdated = useCallback(
     (updated: ProductSummary) => {
-      queryClient.setQueryData<ProductSummary[]>(['products'], (previous) =>
+      queryClient.setQueryData<ProductSummary[]>(['products', queryString], (previous) =>
         previous?.map((product) => (product.id === updated.id ? { ...product, ...updated } : product)) ?? previous,
       );
+      queryClient.invalidateQueries({
+        predicate: (query) => Array.isArray(query.queryKey) && query.queryKey[0] === 'products',
+      });
       setSelectedProductId(null);
     },
-    [queryClient],
+    [queryClient, queryString],
   );
 
   const productRows = useMemo(() => {
@@ -89,10 +92,11 @@ export default function ProductsPage() {
     return products
       .filter((product) => product.isActive)
       .map((product) => {
+        const total = product.totalQuantity;
         const isLowStock =
           product.criticalStockLevel !== null &&
           product.criticalStockLevel !== undefined &&
-          product.totalQuantity < product.criticalStockLevel;
+          total < product.criticalStockLevel;
 
         return (
           <button
@@ -108,7 +112,7 @@ export default function ProductsPage() {
               <p className="text-xs text-slate-500">{product.category ?? '—'}</p>
             </div>
             <span className="flex items-center justify-end gap-2 text-right text-lg font-bold text-cyan-300">
-              {product.totalQuantity} Adet
+              {total} Adet
               {isLowStock ? <AlertTriangle className="size-4 text-amber-400" /> : null}
             </span>
           </button>
@@ -120,7 +124,9 @@ export default function ProductsPage() {
     <div className="min-h-screen bg-slate-950 p-6 text-white">
       <header className="mb-6 flex items-center justify-between border-b border-slate-800 pb-4">
         <h1 className="text-3xl font-semibold text-cyan-400">Ürün Listesi ({productCount} ürün)</h1>
-        <UserButton afterSignOutUrl="/sign-in" />
+        <ClerkLoaded>
+          <UserButton afterSignOutUrl="/sign-in" />
+        </ClerkLoaded>
       </header>
 
       <div className="mb-6 space-y-3">
@@ -145,10 +151,7 @@ export default function ProductsPage() {
                   <p className="font-semibold text-sm">{product.name}</p>
                   <p className="text-[11px] text-slate-400">{product.category ?? 'Kategori yok'}</p>
                 </div>
-                <div className="text-right">
                   <p className="font-mono text-sm text-slate-200">{product.referenceCode}</p>
-                  <p className="text-[11px] text-slate-500">{product.totalQuantity} adet</p>
-                </div>
               </button>
             ))}
           </div>

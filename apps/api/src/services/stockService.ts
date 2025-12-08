@@ -2,6 +2,20 @@ import { Prisma, WarehouseType } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
 
+const recalculateLotQuantity = async (lotId: string) => {
+  const aggregation = await prisma.stockLocation.aggregate({
+    where: { lotId },
+    _sum: { quantity: true },
+  });
+
+  await prisma.lot.update({
+    where: { id: lotId },
+    data: {
+      quantity: aggregation._sum.quantity ?? 0,
+    },
+  });
+};
+
 export const ensureStockLocation = async (warehouseId: string, lotId: string) => {
   return prisma.stockLocation.upsert({
     where: {
@@ -33,10 +47,14 @@ export const adjustStock = async ({ warehouseId, lotId, quantityDelta }: AdjustS
     throw new Error('Bu stok hareketi için depoda yeterli ürün yok');
   }
 
-  return prisma.stockLocation.update({
+  const updatedLocation = await prisma.stockLocation.update({
     where: { id: location.id },
     data: { quantity: newQuantity },
   });
+
+  await recalculateLotQuantity(lotId);
+
+  return updatedLocation;
 };
 
 export const assignLotToMainWarehouse = async (lotId: string, quantity: number) => {
@@ -170,6 +188,7 @@ export const syncMainWarehouseStock = async () => {
       },
     });
 
+    await recalculateLotQuantity(lot.id);
     updatedLots += 1;
   }
 

@@ -35,7 +35,14 @@ export function ProductTable({ products, hidePurchasePrice }: Props) {
                   <p className="text-xs text-slate-500">{product.category ?? 'Kategori Yok'}</p>
                 </td>
                 <td className="px-4 py-4 font-mono text-xs text-slate-400">{product.referenceCode}</td>
-                <td className="px-4 py-4 text-right text-lg font-semibold text-cyan-300">{product.totalQuantity}</td>
+                <td className="px-4 py-4 text-right text-lg font-semibold text-cyan-300">
+                  {product.onHandQuantity ?? product.totalQuantity ?? 0}
+                  {product.customerQuantity ? (
+                    <span className="block text-xs font-normal text-slate-400">
+                      Müşteri: {product.customerQuantity}
+                    </span>
+                  ) : null}
+                </td>
                 {!hidePurchasePrice ? (
                   <td className="px-4 py-4 text-right text-sm text-slate-200">
                     {product.purchasePrice ? `${product.purchasePrice.toLocaleString('tr-TR')} ₺` : '—'}
@@ -89,7 +96,12 @@ export function ProductTable({ products, hidePurchasePrice }: Props) {
                       <p className="font-medium text-white">Lot {lot.lotNumber}</p>
                       <p className="text-xs text-slate-500">Barkod: {lot.barcode ?? '—'}</p>
                     </div>
-                    <span className="text-lg font-semibold text-cyan-300">{lot.quantity} adet</span>
+                    <div className="text-right text-xs text-slate-300">
+                      <p className="text-lg font-semibold text-cyan-300">
+                        Depo {lot.onHandQuantity ?? lot.trackedQuantity ?? lot.quantity}
+                      </p>
+                      {lot.customerQuantity ? <p className="text-slate-400">Müşteri {lot.customerQuantity}</p> : null}
+                    </div>
                   </div>
                   {lot.expiryDate ? (
                     <p className="text-xs text-amber-300">SKT: {new Date(lot.expiryDate).toLocaleDateString('tr-TR')}</p>

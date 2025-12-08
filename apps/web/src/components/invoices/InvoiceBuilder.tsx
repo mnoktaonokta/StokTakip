@@ -28,10 +28,20 @@ interface DraftItem {
 }
 
 interface InvoiceDraft {
+  invoiceId?: string;
+  documentType?: DocumentType;
   customerId: string;
   customerName: string;
   warehouseId?: string;
   items: DraftItem[];
+  form?: {
+    documentNo?: string;
+    issueDate?: string;
+    dueDate?: string;
+    dispatchNo?: string;
+    dispatchDate?: string;
+    notes?: string;
+  };
 }
 
 interface InvoiceItemState extends DraftItem {
@@ -39,24 +49,28 @@ interface InvoiceItemState extends DraftItem {
   discountPercent: number;
 }
 
+const createDefaultForm = () => ({
+  documentNo: '',
+  issueDate: new Date().toISOString().slice(0, 16),
+  dueDate: new Date().toISOString().slice(0, 10),
+  dispatchNo: '',
+  dispatchDate: new Date().toISOString().slice(0, 10),
+  notes: '',
+});
+
 export function InvoiceBuilder({ onClose }: InvoiceBuilderProps) {
   const router = useRouter();
   const [draft, setDraft] = useState<InvoiceDraft | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [items, setItems] = useState<InvoiceItemState[]>([]);
   const [documentType, setDocumentType] = useState<DocumentType>('FATURA');
-  const [form, setForm] = useState({
-    documentNo: '',
-    issueDate: new Date().toISOString().slice(0, 16),
-    dueDate: new Date().toISOString().slice(0, 10),
-    dispatchNo: '',
-    dispatchDate: new Date().toISOString().slice(0, 10),
-    notes: '',
-  });
+  const [form, setForm] = useState(createDefaultForm);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<ProductSummary[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [extraDiscount, setExtraDiscount] = useState(0);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [editingDocumentType, setEditingDocumentType] = useState<DocumentType | null>(null);
 
   const loadDraft = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -64,18 +78,34 @@ export function InvoiceBuilder({ onClose }: InvoiceBuilderProps) {
     if (!stored) {
       setDraft(null);
       setItems([]);
+      setEditingInvoiceId(null);
+      setEditingDocumentType(null);
+      setForm(createDefaultForm());
+      setDocumentType('FATURA');
       return;
     }
     try {
       const parsed: InvoiceDraft = JSON.parse(stored);
       setDraft(parsed);
+      setEditingInvoiceId(parsed.invoiceId ?? null);
+      const inferredType = parsed.documentType ?? 'FATURA';
+      setEditingDocumentType(parsed.documentType ?? null);
+      setDocumentType(inferredType);
       setItems(
-        parsed.items.map((item, index) => ({
+        (parsed.items ?? []).map((item, index) => ({
           ...item,
           id: `${item.productId}-${item.lotId}-${index}`,
           discountPercent: 0,
         })),
       );
+      setForm((prev) => ({
+        documentNo: parsed.form?.documentNo ?? '',
+        issueDate: parsed.form?.issueDate ?? prev.issueDate,
+        dueDate: parsed.form?.dueDate ?? prev.dueDate,
+        dispatchNo: parsed.form?.dispatchNo ?? '',
+        dispatchDate: parsed.form?.dispatchDate ?? prev.dispatchDate,
+        notes: parsed.form?.notes ?? '',
+      }));
     } catch (error) {
       console.error('Taslak okunamadı', error);
     }
@@ -210,6 +240,7 @@ export function InvoiceBuilder({ onClose }: InvoiceBuilderProps) {
   };
 
   const handleSave = async (type: DocumentType) => {
+    setDocumentType(type);
     if (!draft?.customerId) {
       toast.error('Önce bir müşteri seçmelisiniz.');
       return;
@@ -219,7 +250,8 @@ export function InvoiceBuilder({ onClose }: InvoiceBuilderProps) {
       return;
     }
     try {
-      const stockAdjustments = items
+      const isEditing = Boolean(editingInvoiceId && editingDocumentType === type);
+    const stockAdjustments = items
         .filter((item) => item.stockLocationId && item.warehouseId)
         .map((item) => ({
           warehouseId: item.warehouseId!,
@@ -228,50 +260,65 @@ export function InvoiceBuilder({ onClose }: InvoiceBuilderProps) {
           quantity: item.quantity,
         }));
 
-      await apiFetch('/api/invoices', {
-        method: 'POST',
-        body: {
-          customerId: draft.customerId,
-          items: items.map((item) => ({
-            productId: item.productId,
-            lotId: item.lotId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
+      const shouldAdjustStock = !isEditing && stockAdjustments.length > 0;
+      const baseBody = {
+        items: items.map((item) => ({
+          productId: item.productId,
+          lotId: item.lotId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
           vatRate: Number(item.vatRate ?? 0),
-            lotNumber: item.lotNumber,
-            description: item.description,
-            category: item.category,
+          lotNumber: item.lotNumber,
+          description: item.description,
+          category: item.category,
+        })),
+        documentNo: form.documentNo || undefined,
+        issueDate: form.issueDate ? new Date(form.issueDate).toISOString() : undefined,
+        dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+        dispatchNo: form.dispatchNo || undefined,
+        dispatchDate: form.dispatchDate ? new Date(form.dispatchDate).toISOString() : undefined,
+        notes: form.notes || undefined,
+        summary: {
+          grossTotal: totals.grossTotal,
+          discountTotal: totals.discountTotal,
+          netTotal: totals.netTotal,
+          taxTotal: totals.taxTotal,
+          grandTotal: totals.grandTotal,
+          categories: categorySummary.map(([category, quantity]) => ({
+            category,
+            quantity,
+            unit: 'Ad',
           })),
-          stockAdjustments,
-          documentType: type,
-          documentNo: form.documentNo || undefined,
-          issueDate: form.issueDate ? new Date(form.issueDate).toISOString() : undefined,
-          dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
-          dispatchNo: form.dispatchNo || undefined,
-          dispatchDate: form.dispatchDate ? new Date(form.dispatchDate).toISOString() : undefined,
-          notes: form.notes || undefined,
-          summary: {
-            grossTotal: totals.grossTotal,
-            discountTotal: totals.discountTotal,
-            netTotal: totals.netTotal,
-            taxTotal: totals.taxTotal,
-            grandTotal: totals.grandTotal,
-            categories: categorySummary.map(([category, quantity]) => ({
-              category,
-              quantity,
-              unit: 'Ad',
-            })),
-          },
         },
-      });
-      toast.success(
-        type === 'PROFORMA'
-          ? 'Proforma kaydedildi.'
-          : type === 'IRSALIYE'
-            ? 'İrsaliye kaydedildi.'
-            : 'Fatura kaydedildi.',
-      );
+      };
+
+      if (isEditing && editingInvoiceId) {
+        await apiFetch(`/api/invoices/${editingInvoiceId}`, {
+          method: 'PUT',
+          body: baseBody,
+        });
+        toast.success('Belge güncellendi.');
+      } else {
+        await apiFetch('/api/invoices', {
+          method: 'POST',
+          body: {
+            customerId: draft.customerId,
+            stockAdjustments: shouldAdjustStock ? stockAdjustments : undefined,
+            documentType: type,
+            ...baseBody,
+          },
+        });
+        toast.success(
+          type === 'PROFORMA'
+            ? 'Proforma kaydedildi.'
+            : type === 'IRSALIYE'
+              ? 'İrsaliye kaydedildi.'
+              : 'Fatura kaydedildi.',
+        );
+      }
       sessionStorage.removeItem('invoiceDraft');
+      setEditingInvoiceId(null);
+      setEditingDocumentType(null);
       loadDraft();
       router.refresh();
       onClose?.();
@@ -291,48 +338,35 @@ export function InvoiceBuilder({ onClose }: InvoiceBuilderProps) {
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-2xl">
         <div className="flex flex-wrap items-center gap-3">
-          {(['PROFORMA', 'IRSALIYE', 'FATURA'] as DocumentType[]).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setDocumentType(type)}
-              className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
-                documentType === type
-                  ? 'bg-cyan-500/80 text-slate-950'
-                  : 'border border-slate-700 text-slate-300 hover:border-cyan-500'
-              }`}
-            >
-              {type === 'PROFORMA' && 'Proforma / Sipariş Kaydet'}
-              {type === 'IRSALIYE' && 'İrsaliye Kaydet'}
-              {type === 'FATURA' && 'Fatura Kaydet'}
-            </button>
-          ))}
-          <div className="ml-auto flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleSave(documentType)}
-              className="rounded-2xl bg-emerald-500/80 px-5 py-2 text-sm font-semibold text-slate-900 transition hover:bg-emerald-400"
-            >
-              {documentType === 'PROFORMA'
-                ? 'Proformayı Kaydet'
-                : documentType === 'IRSALIYE'
-                  ? 'İrsaliyeyi Kaydet'
-                  : 'Faturayı Kaydet'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (onClose) {
-                  onClose();
-                } else {
-                  router.push('/invoices');
-                }
-              }}
-              className="rounded-2xl border border-slate-600 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800/70"
-            >
-              Geri Dön
-            </button>
-          </div>
+        {(['PROFORMA', 'IRSALIYE', 'FATURA'] as DocumentType[]).map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => handleSave(type)}
+            className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+              documentType === type
+                ? 'bg-cyan-500/80 text-slate-950'
+                : 'border border-slate-700 text-slate-300 hover:border-cyan-500'
+            }`}
+          >
+            {type === 'PROFORMA' && 'Proforma / Sipariş Kaydet'}
+            {type === 'IRSALIYE' && 'İrsaliye Kaydet'}
+            {type === 'FATURA' && 'Fatura Kaydet'}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            if (onClose) {
+              onClose();
+            } else {
+              router.push('/invoices');
+            }
+          }}
+          className="ml-auto rounded-2xl border border-slate-600 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800/70"
+        >
+          Geri Dön
+        </button>
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-4">

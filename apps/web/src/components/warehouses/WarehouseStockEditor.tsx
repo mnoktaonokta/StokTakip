@@ -11,6 +11,8 @@ interface LookupLot {
   lotNumber: string;
   quantity: number;
   expiryDate: string | null;
+  onHandQuantity?: number;
+  customerQuantity?: number;
 }
 
 interface LookupResponse {
@@ -18,6 +20,9 @@ interface LookupResponse {
     id: string;
     name: string;
     referenceCode: string;
+    totalQuantity: number;
+    onHandQuantity?: number;
+    customerQuantity?: number;
   };
   lots: LookupLot[];
   autoSelectedLot: LookupLot | null;
@@ -38,7 +43,9 @@ export function WarehouseStockEditor({ warehouseId, onUpdated }: WarehouseStockE
   const [quantity, setQuantity] = useState('');
   const [isSaving, setSaving] = useState(false);
   const [isSearching, setSearching] = useState(false);
-  const [suggestions, setSuggestions] = useState<Array<Pick<ProductSummary, 'id' | 'name' | 'referenceCode' | 'totalQuantity' | 'category'>>>([]);
+  const [suggestions, setSuggestions] = useState<
+    Array<Pick<ProductSummary, 'id' | 'name' | 'referenceCode' | 'totalQuantity' | 'onHandQuantity' | 'customerQuantity' | 'category'>>
+  >([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
 
   const handleLookup = async (codeOverride?: string) => {
@@ -106,6 +113,8 @@ export function WarehouseStockEditor({ warehouseId, onUpdated }: WarehouseStockE
             name: product.name,
             referenceCode: product.referenceCode,
             totalQuantity: product.totalQuantity,
+            onHandQuantity: product.onHandQuantity,
+            customerQuantity: product.customerQuantity,
             category: product.category,
           })),
         );
@@ -160,7 +169,9 @@ export function WarehouseStockEditor({ warehouseId, onUpdated }: WarehouseStockE
                 </div>
                 <div className="text-right">
                   <p className="text-slate-300">{product.referenceCode}</p>
-                  <p className="text-[10px] text-slate-500">{product.totalQuantity} adet</p>
+                  <p className="text-[10px] text-slate-500">
+                    Depo {product.onHandQuantity ?? product.totalQuantity ?? 0} • Müşteri {product.customerQuantity ?? 0}
+                  </p>
                 </div>
               </button>
             ))}
@@ -175,7 +186,8 @@ export function WarehouseStockEditor({ warehouseId, onUpdated }: WarehouseStockE
           <p className="text-sm font-semibold text-white">{lookupResult.product.name}</p>
           <p className="text-slate-400">Ref: {lookupResult.product.referenceCode}</p>
           <p className="text-slate-400">
-            Bu ürün için {lookupResult.lots.reduce((sum, lot) => sum + lot.quantity, 0)} adet stok bulundu.
+            Depoda {lookupResult.product.onHandQuantity ?? lookupResult.product.totalQuantity} • Müşteride{' '}
+            {lookupResult.product.customerQuantity ?? 0} adet
           </p>
         </div>
       )}
@@ -189,7 +201,7 @@ export function WarehouseStockEditor({ warehouseId, onUpdated }: WarehouseStockE
           >
             {lookupResult.lots.map((lot) => (
               <option key={lot.id} value={lot.id}>
-                {lot.lotNumber} • {lot.quantity} adet
+                  {lot.lotNumber} • Depo {lot.onHandQuantity ?? lot.quantity} adet
               </option>
             ))}
           </select>

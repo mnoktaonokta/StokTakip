@@ -1,12 +1,29 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
+import { Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AppProviders } from './providers';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+const assistant = localFont({
   display: 'swap',
+  variable: '--font-assistant',
+  src: [
+    { path: '../../public/fonts/corona/Assistant/Assistant-Light.woff2', weight: '300', style: 'normal' },
+    { path: '../../public/fonts/corona/Assistant/Assistant-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../../public/fonts/corona/Assistant/Assistant-SemiBold.woff2', weight: '600', style: 'normal' },
+    { path: '../../public/fonts/corona/Assistant/Assistant-Bold.woff2', weight: '700', style: 'normal' },
+  ],
+});
+
+const rubik = localFont({
+  display: 'swap',
+  variable: '--font-rubik',
+  src: [
+    { path: '../../public/fonts/corona/Rubik/Rubik-Light.ttf', weight: '300', style: 'normal' },
+    { path: '../../public/fonts/corona/Rubik/Rubik-Regular.ttf', weight: '400', style: 'normal' },
+    { path: '../../public/fonts/corona/Rubik/Rubik-Medium.ttf', weight: '500', style: 'normal' },
+    { path: '../../public/fonts/corona/Rubik/Rubik-Bold.ttf', weight: '700', style: 'normal' },
+  ],
 });
 
 const geistMono = Geist_Mono({
@@ -28,8 +45,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr" className="bg-slate-950">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-950 text-slate-100`}>
+    <html lang="tr" className="bg-background text-foreground">
+      <body className={`${assistant.variable} ${rubik.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

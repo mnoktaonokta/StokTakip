@@ -121,33 +121,48 @@ router.get('/lookup', async (req, res) => {
           { lots: { some: { barcode: { contains: rawCode, mode: 'insensitive' } } } },
         ],
       },
-      include: {
-        lots: {
-          where: { quantity: { gt: 0 } },
-          orderBy: [
-            { expiryDate: 'asc' },
-            { createdAt: 'asc' },
-          ],
-        },
-      },
+      include: productInclude,
     });
 
     if (!product) {
       return res.status(404).json({ message: 'Ürün veya Lot bulunamadı.' });
     }
 
-    const autoSelectedLot = product.lots[0];
+    const serialized = serializeProduct(product);
+    const sortedLots = [...serialized.lots].sort((a, b) => {
+      const aDate = a.expiryDate ? new Date(a.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+      const bDate = b.expiryDate ? new Date(b.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+      if (aDate !== bDate) {
+        return aDate - bDate;
+      }
+      return a.lotNumber.localeCompare(b.lotNumber);
+    });
+    const lots = sortedLots.filter((lot) => (lot.trackedQuantity ?? lot.quantity) > 0);
+    const autoSelectedLot = lots.find((lot) => (lot.onHandQuantity ?? 0) > 0) ?? lots[0] ?? null;
+    const totalQuantity = lots.reduce((sum, lot) => sum + (lot.trackedQuantity ?? lot.quantity), 0);
+    const responseLots = lots.map((lot) => ({
+      id: lot.id,
+      lotNumber: lot.lotNumber,
+      quantity: (lot.trackedQuantity ?? lot.quantity) || 0,
+      barcode: lot.barcode,
+      expiryDate: lot.expiryDate,
+      onHandQuantity: lot.onHandQuantity,
+      customerQuantity: lot.customerQuantity,
+      stockLocations: lot.stockLocations,
+    }));
 
     return res.json({
       product: {
-        id: product.id,
-        name: product.name,
-        referenceCode: product.referenceCode,
-        totalQuantity: product.lots.reduce((sum, lot) => sum + lot.quantity, 0),
+        id: serialized.id,
+        name: serialized.name,
+        referenceCode: serialized.referenceCode,
+        totalQuantity,
+        onHandQuantity: serialized.onHandQuantity,
+        customerQuantity: serialized.customerQuantity,
       },
-      lots: product.lots,
+      lots: responseLots,
       autoSelectedLot,
-      isBarcodeMatch: product.lots.some((lot) => lot.barcode?.toLowerCase() === rawCode.toLowerCase()),
+      isBarcodeMatch: serialized.lots.some((lot) => lot.barcode?.toLowerCase() === rawCode.toLowerCase()),
     });
   } catch (error) {
     console.error('Barkod/Lookup Hatası:', error);

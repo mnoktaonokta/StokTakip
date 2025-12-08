@@ -62,18 +62,22 @@ export const attachCurrentUser = async (req: Request, res: Response, next: NextF
 
     // Email'i normalize et (Küçük harf)
     const normalizedEmail = email.toLowerCase();
+    const isAdminEmail = env.adminEmails.includes(normalizedEmail) || normalizedEmail.includes('admin');
 
     console.log(`🔍 Auth Kontrolü: ${normalizedEmail} (ClerkID: ${userId})`);
 
     // Veritabanında kullanıcıyı bulmaya çalış veya oluştur
     const user = await prisma.user.upsert({
       where: { email: normalizedEmail },
-      update: { name }, // İsim güncelse yenile
+      update: {
+        name, // İsim güncelse yenile
+        ...(isAdminEmail ? { role: UserRole.admin } : {}),
+      },
       create: {
         email: normalizedEmail,
         name: name || 'Kullanıcı',
-        // 'admin' kelimesi içeren mailleri otomatik admin yap (Geliştirme kolaylığı)
-        role: normalizedEmail.includes('admin') ? UserRole.admin : UserRole.employee,
+        // ADMIN_EMAILS veya 'admin' içeren mailler otomatik admin
+        role: isAdminEmail ? UserRole.admin : UserRole.employee,
       },
     });
 

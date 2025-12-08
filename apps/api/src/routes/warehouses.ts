@@ -1,14 +1,24 @@
+import { WarehouseType } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 
 import { prisma } from '../lib/prisma';
+import { adjustStock } from '../services/stockService';
 import { productInclude } from './utils/productSerializer';
-import { requireAdmin } from '../middleware/roleGuard';
+import { requireAdmin, requireStaff } from '../middleware/roleGuard';
 
 const router = Router();
 
+const findMainWarehouse = () =>
+  prisma.warehouse.findFirst({
+    where: { type: WarehouseType.MAIN },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+
 router.get('/', async (_req, res) => {
   const warehouses = await prisma.warehouse.findMany({
+    orderBy: { name: 'asc' },
     include: {
       customers: true,
       stockLocations: {
@@ -24,6 +34,21 @@ router.get('/', async (_req, res) => {
       },
     },
   });
+
+  const priority = {
+    [WarehouseType.MAIN]: 0,
+    [WarehouseType.CUSTOMER]: 1,
+    [WarehouseType.EMPLOYEE]: 2,
+  } as Record<WarehouseType, number>;
+
+  warehouses.sort((a, b) => {
+    const diff = priority[a.type] - priority[b.type];
+    if (diff !== 0) {
+      return diff;
+    }
+    return a.name.localeCompare(b.name, 'tr');
+  });
+
   return res.json(warehouses);
 });
 
@@ -42,7 +67,7 @@ const updateWarehouseSchema = z
     message: 'En az bir alan güncellenmelidir',
   });
 
-router.post('/', requireAdmin, async (req, res, next) => {
+router.post('/', requireStaff, async (req, res, next) => {
   try {
     const body = createWarehouseSchema.parse(req.body);
     const { customerId, ...warehouseData } = body;
@@ -61,7 +86,7 @@ router.post('/', requireAdmin, async (req, res, next) => {
   }
 });
 
-router.delete('/:warehouseId', requireAdmin, async (req, res, next) => {
+router.delete('/:warehouseId', requireStaff, async (req, res, next) => {
   try {
     await prisma.customer.updateMany({
       where: { warehouseId: req.params.warehouseId },
@@ -77,7 +102,7 @@ router.delete('/:warehouseId', requireAdmin, async (req, res, next) => {
   }
 });
 
-router.patch('/:warehouseId', requireAdmin, async (req, res, next) => {
+router.patch('/:warehouseId', requireStaff, async (req, res, next) => {
   try {
     const body = updateWarehouseSchema.parse(req.body);
     const updated = await prisma.warehouse.update({
@@ -93,7 +118,10 @@ router.patch('/:warehouseId', requireAdmin, async (req, res, next) => {
 router.get('/:warehouseId/stock', async (req, res, next) => {
   try {
     const stock = await prisma.stockLocation.findMany({
-      where: { warehouseId: req.params.warehouseId },
+      where: {
+        warehouseId: req.params.warehouseId,
+        quantity: { gt: 0 },
+      },
       include: { lot: { include: { product: true } } },
     });
     return res.json(stock);
@@ -102,20 +130,41 @@ router.get('/:warehouseId/stock', async (req, res, next) => {
   }
 });
 
-router.post('/:warehouseId/stock', requireAdmin, async (req, res, next) => {
+router.post('/:warehouseId/stock', requireStaff, async (req, res, next) => {
   const bodySchema = z.object({
     lotId: z.string(),
-    quantity: z.number().int(),
+    quantity: z.number().int().positive(),
     mode: z.enum(['set', 'add', 'remove']).default('set'),
   });
 
   try {
     const body = bodySchema.parse(req.body);
 
+    const targetWarehouseId = req.params.warehouseId;
+    const targetWarehouse = await prisma.warehouse.findUnique({
+      where: { id: targetWarehouseId },
+      select: { type: true },
+    });
+
+    if (!targetWarehouse) {
+      return res.status(404).json({ message: 'Depo bulunamadı' });
+    }
+
+    const shouldAffectMain = targetWarehouse.type !== WarehouseType.MAIN;
+    let mainWarehouseId: string | null = null;
+
+    if (shouldAffectMain) {
+      const mainWarehouse = await findMainWarehouse();
+      if (!mainWarehouse) {
+        return res.status(400).json({ message: 'Ana depo bulunamadı' });
+      }
+      mainWarehouseId = mainWarehouse.id;
+    }
+
     const existing = await prisma.stockLocation.findUnique({
       where: {
         warehouseId_lotId: {
-          warehouseId: req.params.warehouseId,
+          warehouseId: targetWarehouseId,
           lotId: body.lotId,
         },
       },
@@ -132,14 +181,36 @@ router.post('/:warehouseId/stock', requireAdmin, async (req, res, next) => {
       newQuantity = body.quantity;
     }
 
+    const delta = newQuantity - currentQuantity;
+
+    const adjustMain = async (quantityDelta: number) => {
+      if (!shouldAffectMain || !mainWarehouseId || quantityDelta === 0) {
+        return;
+      }
+
+      await adjustStock({
+        warehouseId: mainWarehouseId,
+        lotId: body.lotId,
+        quantityDelta,
+      });
+    };
+
+    if (delta > 0) {
+      await adjustMain(-delta);
+    }
+
     if (newQuantity <= 0) {
       if (existing) {
         await prisma.stockLocation.delete({ where: { id: existing.id } });
+      }
+      if (delta < 0) {
+        await adjustMain(-delta);
       }
       return res.json({ deleted: true });
     }
 
     let location;
+    try {
     if (existing) {
       location = await prisma.stockLocation.update({
         where: { id: existing.id },
@@ -148,11 +219,21 @@ router.post('/:warehouseId/stock', requireAdmin, async (req, res, next) => {
     } else {
       location = await prisma.stockLocation.create({
         data: {
-          warehouseId: req.params.warehouseId,
+            warehouseId: targetWarehouseId,
           lotId: body.lotId,
           quantity: newQuantity,
         },
       });
+      }
+    } catch (error) {
+      if (delta > 0) {
+        await adjustMain(delta);
+      }
+      throw error;
+    }
+
+    if (delta < 0) {
+      await adjustMain(-delta);
     }
 
     return res.json(location);
@@ -161,12 +242,38 @@ router.post('/:warehouseId/stock', requireAdmin, async (req, res, next) => {
   }
 });
 
-router.delete('/:warehouseId/stock/:stockLocationId', requireAdmin, async (req, res, next) => {
+router.delete('/:warehouseId/stock/:stockLocationId', requireStaff, async (req, res, next) => {
   try {
-    const location = await prisma.stockLocation.delete({
+    const location = await prisma.stockLocation.findUnique({
       where: { id: req.params.stockLocationId },
+      include: {
+        warehouse: {
+          select: { type: true },
+        },
+      },
     });
-    return res.json(location);
+
+    if (!location) {
+      return res.status(404).json({ message: 'Stok kaydı bulunamadı' });
+    }
+
+    if (location.warehouse.type !== WarehouseType.MAIN && location.quantity > 0) {
+      const mainWarehouse = await findMainWarehouse();
+      if (!mainWarehouse) {
+        return res.status(400).json({ message: 'Ana depo bulunamadı' });
+      }
+      await adjustStock({
+        warehouseId: mainWarehouse.id,
+        lotId: location.lotId,
+        quantityDelta: location.quantity,
+      });
+    }
+
+    const deleted = await prisma.stockLocation.delete({
+      where: { id: location.id },
+    });
+
+    return res.json(deleted);
   } catch (error) {
     return next(error);
   }

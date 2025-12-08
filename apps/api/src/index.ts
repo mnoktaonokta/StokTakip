@@ -5,18 +5,13 @@ import { env } from './config/env';
 
 const app = createServer();
 
-app.listen(env.port, () => {
-  console.log(`API server listening on http://localhost:${env.port}`);
-});
+// BURASI ÇOK ÖNEMLİ: Varsayılan 4000 olsun
+const PORT = env.port || 4000;
 
-app.get('/api/warehouses', async (req, res) => {
-  try {
-    const warehouses = await prisma.warehouse.findMany({
-      orderBy: { name: 'asc' },
-    });
-    res.json(warehouses);
-  } catch (error) {
-    console.error('Depo çekme hatası:', error);
-    res.status(500).json({ error: 'Depolar yüklenemedi' });
-  }
+// '0.0.0.0' YAZMAZSA TELEFON GÖREMEZ!
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('================================================');
+  console.log(`🚀 SUNUCU SIFIRDAN BAŞLADI!`);
+  console.log(`📡 Adres: http://0.0.0.0:${PORT}`);
+  console.log('================================================');
 });

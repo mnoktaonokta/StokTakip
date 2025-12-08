@@ -6,15 +6,18 @@ import { prisma } from '../lib/prisma';
 import { adjustStock } from '../services/stockService';
 import { recordLog } from '../services/logService';
 import { sendInvoiceToProvider } from '../services/invoiceService';
-import { requireAdmin } from '../middleware/roleGuard';
+import { requireStaff } from '../middleware/roleGuard';
 
 const router = Router();
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
+  const showCancelled = req.query.showCancelled === 'true';
   const invoices = await prisma.invoice.findMany({
+    where: showCancelled ? undefined : { isCancelled: false },
     include: {
       customer: true,
       transfers: true,
+      cancelledBy: true,
     },
     orderBy: { timestamp: 'desc' },
   });
@@ -28,6 +31,7 @@ router.get('/:invoiceId', async (req, res, next) => {
       include: {
         customer: true,
         transfers: true,
+        cancelledBy: true,
       },
     });
 
@@ -91,7 +95,18 @@ const invoiceSchema = z.object({
   summary: summarySchema.optional(),
 });
 
-router.post('/', async (req, res, next) => {
+const invoiceUpdateSchema = z.object({
+  items: z.array(invoiceItemSchema).nonempty(),
+  documentNo: z.string().optional(),
+  issueDate: z.string().optional(),
+  dueDate: z.string().optional(),
+  dispatchNo: z.string().optional(),
+  dispatchDate: z.string().optional(),
+  notes: z.string().optional(),
+  summary: summarySchema.optional(),
+});
+
+router.post('/', requireStaff, async (req, res, next) => {
   try {
     const body = invoiceSchema.parse(req.body);
     const customer = await prisma.customer.findUnique({
@@ -133,6 +148,11 @@ router.post('/', async (req, res, next) => {
             lotId: transfer.lotId,
             quantityDelta: -transfer.quantity,
           });
+          await adjustStock({
+            warehouseId: transfer.fromWarehouseId,
+            lotId: transfer.lotId,
+            quantityDelta: transfer.quantity,
+          });
         }
 
         await prisma.transfer.updateMany({
@@ -142,11 +162,102 @@ router.post('/', async (req, res, next) => {
       }
     }
 
+    const lotIds = body.items?.map((item) => item.lotId) ?? [];
+    const lotsWithProduct =
+      lotIds.length > 0
+        ? await prisma.lot.findMany({
+            where: { id: { in: lotIds } },
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  vatRate: true,
+                },
+              },
+            },
+          })
+        : [];
+    const lotMap = new Map(lotsWithProduct.map((lot) => [lot.id, lot]));
+
+    // 1. Adım: Verileri işle (Burada null dönebilir)
+    const rawDetails =
+      body.items?.map((item) => {
+        const lot = lotMap.get(item.lotId);
+        const productInfo = lot?.product;
+        if (!productInfo) {
+          return null;
+        }
+        const taxRate = Number(productInfo.vatRate ?? 0);
+        const quantity = item.quantity;
+        const unitPrice = item.unitPrice;
+        const grossPrice = Number((unitPrice * quantity).toFixed(2));
+        const net = grossPrice;
+        const tax = Number(((net * taxRate) / 100).toFixed(2));
+        const total = Number((net + tax).toFixed(2));
+        return {
+          productId: productInfo.id,
+          productName: productInfo.name,
+          barcode: lot?.barcode ?? undefined,
+          taxRate,
+          quantity,
+          unitPrice,
+          grossPrice,
+          discount: 0,
+          net,
+          tax,
+          total,
+        };
+      }) ?? [];
+
+    // 2. Adım: TypeScript Hatasını Önlemek İçin Null Değerleri Filtrele
+    const providerDetails = rawDetails.filter(
+      (detail): detail is NonNullable<typeof detail> => detail !== null,
+    );
+
+    const providerAmounts = providerDetails.reduce(
+      (acc, detail) => {
+        acc.gross += detail.grossPrice;
+        acc.discount += detail.discount;
+        acc.net += detail.net;
+        acc.tax += detail.tax;
+        acc.total += detail.total;
+        return acc;
+      },
+      { currency: 'TL', gross: 0, discount: 0, net: 0, tax: 0, total: 0 },
+    );
+
+    // Firma bilgilerini çekip (varsa) banka hesap bilgisini fatura notuna ekle
+    const company = await prisma.companyInfo.findFirst({
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const bankNote = company?.bankAccount
+      ? `\n\nBanka Hesap Bilgileri:\n${company.bankAccount}`
+      : '';
+
+    const providerNote = `${body.notes ?? ''}${bankNote}`;
+
     const providerResponse =
-      body.documentType === 'FATURA'
+      body.documentType === 'FATURA' && providerDetails.length > 0
         ? await sendInvoiceToProvider({
-            customerName: customer.name,
-            items: body.items,
+            invoiceNo: body.documentNo ?? undefined,
+            note: providerNote || undefined,
+            invoiceDate: body.issueDate ? new Date(body.issueDate) : new Date(),
+            dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+            deliveryDate: body.dispatchDate ? new Date(body.dispatchDate) : undefined,
+            type: 'SALE',
+            customer: {
+              id: customer.id,
+              title: customer.name,
+              address: customer.address,
+              taxOffice: customer.taxOffice,
+              taxNo: customer.taxNumber,
+              email: customer.email,
+              phone: customer.phone,
+            },
+            details: providerDetails,
+            amounts: providerAmounts,
           })
         : null;
 
@@ -156,7 +267,9 @@ router.post('/', async (req, res, next) => {
         items: body.items,
         transferIds: transferIds.length > 0 ? transferIds : undefined,
         invoiceNumber: providerResponse?.invoiceNumber,
-        totalAmount: body.summary?.grandTotal ?? body.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+        totalAmount:
+          body.summary?.grandTotal ??
+          body.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
         createdById: req.currentUser?.id,
         documentType: body.documentType,
         documentNo: body.documentNo,
@@ -164,7 +277,7 @@ router.post('/', async (req, res, next) => {
         dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
         dispatchNo: body.dispatchNo,
         dispatchDate: body.dispatchDate ? new Date(body.dispatchDate) : undefined,
-        notes: body.notes,
+        notes: providerNote,
         grossTotal: body.summary?.grossTotal,
         discountTotal: body.summary?.discountTotal,
         netTotal: body.summary?.netTotal,
@@ -189,33 +302,91 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.delete('/:invoiceId', requireAdmin, async (req, res, next) => {
+router.delete('/:invoiceId', requireStaff, async (req, res, next) => {
   try {
     const invoice = await prisma.invoice.findUnique({
       where: { id: req.params.invoiceId },
-      include: { transfers: true },
     });
 
     if (!invoice) {
       return res.status(404).json({ message: 'Fatura bulunamadı' });
     }
 
-    if (invoice.documentType === 'FATURA') {
-      return res.status(400).json({ message: 'Fatura edilmiş kayıt silinemez' });
+    if (invoice.isCancelled) {
+      return res.status(400).json({ message: 'Bu belge zaten iptal edilmiş' });
     }
 
-    await prisma.invoice.delete({
+    const updated = await prisma.invoice.update({
       where: { id: invoice.id },
+      data: {
+        isCancelled: true,
+        cancelledAt: new Date(),
+        cancelledById: req.currentUser?.id,
+      },
+      include: {
+        cancelledBy: true,
+      },
     });
 
     await recordLog({
       userId: req.currentUser?.id,
       customerId: invoice.customerId,
+      invoiceId: invoice.id,
       actionType: ActionType.INVOICE_CANCELLED,
-      description: `${invoice.documentType.toLowerCase()} silindi (${invoice.invoiceNumber ?? invoice.id})`,
+      description: `${invoice.documentType.toLowerCase()} iptal edildi (${invoice.invoiceNumber ?? invoice.id})`,
     });
 
-    return res.json({ success: true });
+    return res.json(updated);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.put('/:invoiceId', requireStaff, async (req, res, next) => {
+  try {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: req.params.invoiceId },
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ message: 'Belge bulunamadı' });
+    }
+
+    if (invoice.documentType === 'FATURA' || invoice.isCancelled) {
+      return res
+        .status(400)
+        .json({ message: 'Kesilmiş veya iptal edilmiş belgeler güncellenemez' });
+    }
+
+    const body = invoiceUpdateSchema.parse(req.body);
+    const updated = await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        items: body.items,
+        documentNo: body.documentNo ?? undefined,
+        issueDate: body.issueDate ? new Date(body.issueDate) : invoice.issueDate,
+        dueDate: body.dueDate ? new Date(body.dueDate) : invoice.dueDate,
+        dispatchNo: body.dispatchNo ?? undefined,
+        dispatchDate: body.dispatchDate ? new Date(body.dispatchDate) : invoice.dispatchDate,
+        notes: body.notes ?? undefined,
+        totalAmount:
+          body.summary?.grandTotal ??
+          body.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+        grossTotal: body.summary?.grossTotal,
+        discountTotal: body.summary?.discountTotal,
+        netTotal: body.summary?.netTotal,
+        taxTotal: body.summary?.taxTotal,
+      },
+    });
+
+    await recordLog({
+      userId: req.currentUser?.id,
+      customerId: invoice.customerId,
+      actionType: ActionType.MANUAL_ADJUSTMENT,
+      description: `${invoice.documentType.toLowerCase()} güncellendi (${invoice.invoiceNumber ?? invoice.id})`,
+    });
+
+    return res.json(updated);
   } catch (error) {
     return next(error);
   }

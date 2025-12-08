@@ -23,8 +23,20 @@ const isUserAllowed = (req: Request, allowedIds: string[]) => {
 };
 
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.currentUser || req.currentUser.role !== UserRole.admin) {
+  if (!req.currentUser) {
+    return res.status(401).json({ message: 'Oturum bulunamadı' });
+  }
+
+  if (req.currentUser.role !== UserRole.admin) {
     return res.status(403).json({ message: 'Sadece admin bu işlemi yapabilir' });
+  }
+
+  return next();
+};
+
+export const requireStaff = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.currentUser) {
+    return res.status(401).json({ message: 'Oturum bulunamadı' });
   }
   return next();
 };
@@ -44,19 +56,25 @@ export const requireCsvUploader = (req: Request, res: Response, next: NextFuncti
 };
 
 export const requireStockManager = (req: Request, res: Response, next: NextFunction) => {
-  if (req.currentUser?.role === UserRole.admin) {
+  if (!req.currentUser) {
+    return res.status(401).json({ message: 'Oturum bulunamadı' });
+  }
+
+  // Admin her zaman yetkilidir
+  if (req.currentUser.role === UserRole.admin) {
     return next();
   }
 
-  if (stockManagerUserIds.length === 0) {
-    return res.status(403).json({ message: 'Stok yöneticisi tanımlı değil' });
+  // Yeni model: Kullanıcının DB üzerinde canManageStock bayrağı olmalı
+  if (req.currentUser.canManageStock) {
+    return next();
   }
 
-  if (!isUserAllowed(req, stockManagerUserIds)) {
-    return res.status(403).json({ message: 'Stok düzenleme yetkiniz yok' });
+  // Eski modelle geriye dönük uyumluluk: ENV üzerinden tanımlı stok yöneticileri
+  if (stockManagerUserIds.length > 0 && isUserAllowed(req, stockManagerUserIds)) {
+    ensureUserContext(req, req.header('x-user-id') ?? stockManagerUserIds[0]);
+    return next();
   }
 
-  ensureUserContext(req, req.header('x-user-id') ?? stockManagerUserIds[0]);
-
-  return next();
+  return res.status(403).json({ message: 'Stok düzenleme yetkiniz yok' });
 };

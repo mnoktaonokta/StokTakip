@@ -1,11 +1,19 @@
 'use client';
 
 import { Menu, UserRound } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { ClerkLoaded } from '@clerk/nextjs';
+
 import { Sidebar } from './Sidebar';
 
 export function Topbar() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
     <>
@@ -25,8 +33,10 @@ export function Topbar() {
 
       {open ? (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur">
-          <div className="h-full w-72 bg-slate-950 p-4 shadow-2xl">
-            <Sidebar />
+          <div className="h-full w-72 shadow-2xl">
+            <ClerkLoaded>
+              <Sidebar mobile onNavigate={() => setOpen(false)} />
+            </ClerkLoaded>
           </div>
         </div>
       ) : null}

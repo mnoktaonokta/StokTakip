@@ -6,6 +6,10 @@ export interface RequestUser {
   role: UserRole;
   name?: string | null;
   email?: string | null;
+  // Yetki bayrakları (Prisma User modelinden gelir)
+  canManageStock?: boolean;
+  canCreateInvoices?: boolean;
+  canManageProducts?: boolean;
 }
 
 declare global {

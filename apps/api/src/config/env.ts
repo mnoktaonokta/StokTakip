@@ -5,14 +5,6 @@
 // Çevre değişkenlerini uygulama başlamadan yüklüyoruz
 // dotenv.config();
 
-// --- DEBUG KODLARI (Bu kısım yeni) ---
-console.log('\n--- CLERK ENV DEBUG BAŞLANGIÇ ---');
-console.log('PUBLISHABLE KEY CHECK:', process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? 'YÜKLENDİ' : 'YÜKLENEMEDİ');
-console.log('SECRET KEY CHECK:', process.env.CLERK_SECRET_KEY ? 'YÜKLENDİ' : 'YÜKLENEMEDİ');
-console.log('--- CLERK ENV DEBUG BİTİŞ ---\n');
-// ------------------------------------
-
-
 // --- Gerekli/Önerilen Değişkenler ---
 const requiredVars = ['DATABASE_URL', 'CLERK_SECRET_KEY'];
 
@@ -36,6 +28,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.API_PORT ?? process.env.PORT ?? 4000),
   appBaseUrl: process.env.APP_BASE_URL ?? 'http://localhost:3000',
+  corsAllowedOrigins: parseList(process.env.CORS_ALLOWED_ORIGIN ?? process.env.CORS_ALLOWED_ORIGINS ?? ''),
 
   // --- Veritabanı (Supabase/Prisma) ---
   databaseUrl: process.env.DATABASE_URL ?? '',
@@ -48,12 +41,13 @@ export const env = {
   clerkSecretKey: process.env.CLERK_SECRET_KEY ?? '',
 
   // --- Entegrasyon (FATURA) ---
-  bizimHesapApiUrl: process.env.BIZIMHESAP_API_URL ?? 'https://api.bizimhesap.com/v2',
+  bizimHesapApiUrl: process.env.BIZIMHESAP_API_URL ?? 'https://bizimhesap.com/api/b2b',
   bizimHesapApiKey: process.env.BIZIMHESAP_API_KEY ?? '',
+  bizimHesapFirmId: process.env.BIZIMHESAP_FIRM_ID ?? '',
 
   // --- Yetki bypass (DEV) ---
   csvUploaderUserId: defaultCsvUploaderUserId,
   stockManagerUserIds: parseList(process.env.STOCK_MANAGER_USER_IDS ?? defaultCsvUploaderUserId),
+  // Admin olarak işaretlenecek e-posta adresleri (virgülle ayrılmış)
   adminEmails: parseList(adminEmailsRaw),
-  adminEmails: parseList(process.env.ADMIN_EMAILS?.toLowerCase()),
 };

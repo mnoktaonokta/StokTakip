@@ -1,10 +1,11 @@
-import { ActionType, Prisma } from '@prisma/client';
+import { ActionType, Prisma, WarehouseType } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 
 import { prisma } from '../lib/prisma';
 import { requireStockManager } from '../middleware/roleGuard';
 import { productInclude, serializeProduct } from './utils/productSerializer';
+import { adjustStock } from '../services/stockService';
 
 const router = Router();
 
@@ -29,6 +30,34 @@ router.patch('/:lotId', requireStockManager, async (req, res, next) => {
         },
       },
     });
+
+    const mainWarehouse = await prisma.warehouse.findFirst({
+      where: { type: WarehouseType.MAIN },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
+    if (mainWarehouse) {
+      const mainLocation = await prisma.stockLocation.findUnique({
+        where: {
+          warehouseId_lotId: {
+            warehouseId: mainWarehouse.id,
+            lotId: lot.id,
+          },
+        },
+      });
+
+      const currentMainQuantity = mainLocation?.quantity ?? 0;
+      const delta = body.quantity - currentMainQuantity;
+
+      if (delta !== 0) {
+        await adjustStock({
+          warehouseId: mainWarehouse.id,
+          lotId: lot.id,
+          quantityDelta: delta,
+        });
+      }
+    }
 
     await prisma.log.create({
       data: {

@@ -42,12 +42,31 @@ model User {
   name      String
   email     String    @unique
   role      UserRole  @default(employee)
+  // Yetki bayrakları (admin harici çalışanlar için ince ayar)
+  canManageStock     Boolean  @default(false) // Stok ekleme/çıkarma, lot oluşturma vb.
+  canCreateInvoices  Boolean  @default(false) // Fatura oluşturma/iptal
+  canManageProducts  Boolean  @default(false) // Ürün kartlarını düzenleme
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   transfers Transfer[] @relation("TransferCreatedBy")
   logs      Log[]
   invoices  Invoice[]  @relation("InvoiceCreatedBy")
+  cancelledInvoices Invoice[] @relation("InvoiceCancelledBy")
+}
+
+/// Firma/şirket bazlı ayarlar (tek deployment = tek firma)
+model CompanyInfo {
+  id          String   @id @default(cuid())
+  tradeName   String   // Ticari Ünvan
+  address     String?
+  phone       String?
+  taxNumber   String?  // Vergi / TCKN
+  taxOffice   String?
+  bankAccount String?  // Faturada açıklamaya eklenecek banka hesap bilgileri (IBAN, banka adı vb.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Product {
@@ -190,9 +209,13 @@ model Invoice {
   discountTotal Decimal?  @db.Decimal(12, 2)
   netTotal      Decimal?  @db.Decimal(12, 2)
   taxTotal      Decimal?  @db.Decimal(12, 2)
+  isCancelled   Boolean   @default(false)
+  cancelledAt   DateTime?
+  cancelledById String?
 
   customer  Customer @relation(fields: [customerId], references: [id])
   createdBy User?    @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  cancelledBy User?  @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
   logs      Log[]
   transfers Transfer[] @relation("InvoiceTransfers")
 }

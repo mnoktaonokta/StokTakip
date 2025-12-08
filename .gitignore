@@ -1,3 +1,45 @@
-node_modules/
-.DS_Store
+# --- Dependencies ---
+node_modules
+.pnp
+.pnp.js
+
+# --- Testing ---
+coverage
+
+# --- Next.js (Frontend Build) ---
+/.next/
+/out/
+/build
+.vercel
+
+# --- Node.js / NestJS (Backend Build) ---
+/dist/
+/apps/api/dist/
+/apps/web/.next/
+
+# --- Environment Variables (GÜVENLİK İÇİN ÇOK ÖNEMLİ) ---
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# --- Mac OS System Files ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs
+*.log
+npm-debug.log
+
+# --- IDEs ---
+.idea
+.vscode
+*.swp
+*.swo

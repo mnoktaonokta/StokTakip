@@ -19,7 +19,7 @@ export async function apiFetch<TResponse>(path: string, options: ApiOptions = {}
   const defaultHeaders: Record<string, string> = {};
 
   try {
-    const authResult = auth();
+    const authResult = await auth();
     if (typeof authResult?.getToken === 'function') {
       const token = await authResult.getToken();
       if (token) {
@@ -63,4 +63,5 @@ export async function apiFetch<TResponse>(path: string, options: ApiOptions = {}
 
   return response.json() as Promise<TResponse>;
 }
+
 

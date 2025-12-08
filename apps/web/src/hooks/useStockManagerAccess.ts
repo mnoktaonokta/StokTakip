@@ -1,19 +1,18 @@
 'use client';
 
-import { useAuth } from '@clerk/nextjs';
-
-import { DEV_USER_ID, hasStockManagerAccess } from '@/lib/api-client';
+import { useApiQuery } from '@/hooks/useApi';
+import type { CurrentUser } from '@/types/api';
 
 export const useStockManagerAccess = () => {
-  const { userId } = useAuth();
-  const effectiveUserId = userId ?? DEV_USER_ID;
-  const canEditStock = hasStockManagerAccess(effectiveUserId);
+  const { data } = useApiQuery<CurrentUser>(['current-user'], '/api/users/me', {
+    // Eğer hata alırsak (ör. oturum yoksa) sessizce false dönelim
+    retry: 0,
+  });
+
+  const canEditStock = Boolean(data && (data.role === 'admin' || data.canManageStock));
 
   return {
     canEditStock,
-    userId: effectiveUserId,
+    userId: data?.id,
   };
 };
-
-
-

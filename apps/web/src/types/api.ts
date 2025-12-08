@@ -10,6 +10,8 @@ export interface ProductSummary {
   isActive: boolean;
   criticalStockLevel?: number | null;
   totalQuantity: number;
+  onHandQuantity?: number;
+  customerQuantity?: number;
   lots: Lot[];
 }
 
@@ -18,6 +20,18 @@ export interface Lot {
   productId: string;
   lotNumber: string;
   quantity: number;
+  trackedQuantity?: number;
+  onHandQuantity?: number;
+  customerQuantity?: number;
+  stockLocations?: Array<{
+    id: string;
+    quantity: number;
+    warehouse: {
+      id: string;
+      name: string;
+      type: 'MAIN' | 'CUSTOMER' | 'EMPLOYEE';
+    };
+  }>;
   barcode?: string | null;
   expiryDate?: string | null;
 }
@@ -31,6 +45,7 @@ export interface Warehouse {
 export interface WarehouseWithStock extends Warehouse {
   stockLocations: Array<{
     id: string;
+    lotId: string;
     quantity: number;
     lot: Lot & { product: ProductSummary };
   }>;
@@ -84,6 +99,20 @@ export interface CustomerNote {
   createdAt: string;
 }
 
+export interface InvoiceItem {
+  productId: string;
+  lotId: string;
+  lotNumber?: string | null;
+  description?: string | null;
+  referenceCode?: string | null;
+  quantity: number;
+  unitPrice: number;
+  vatRate?: number | null;
+  category?: string | null;
+  warehouseId?: string | null;
+  stockLocationId?: string | null;
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber?: string | null;
@@ -92,6 +121,15 @@ export interface Invoice {
   timestamp: string;
   documentType?: 'PROFORMA' | 'IRSALIYE' | 'FATURA';
   documentNo?: string | null;
+  issueDate?: string | null;
+  dueDate?: string | null;
+  dispatchNo?: string | null;
+  dispatchDate?: string | null;
+  notes?: string | null;
+  isCancelled?: boolean;
+  cancelledAt?: string | null;
+  cancelledBy?: { name: string | null } | null;
+  items?: InvoiceItem[] | null;
 }
 
 export interface ActivityLog {
@@ -103,4 +141,28 @@ export interface ActivityLog {
   customer?: Customer | null;
   product?: ProductSummary | null;
   lot?: Lot | null;
+  warehouse?: Warehouse | null;
+  invoice?: Invoice | null;
+}
+
+export interface CurrentUser {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  role: 'admin' | 'employee';
+  canManageStock?: boolean;
+  canCreateInvoices?: boolean;
+  canManageProducts?: boolean;
+}
+
+export interface UserSummary extends CurrentUser {}
+
+export interface CompanyInfo {
+  id: string;
+  tradeName: string;
+  address?: string | null;
+  phone?: string | null;
+  taxNumber?: string | null;
+  taxOffice?: string | null;
+  bankAccount?: string | null;
 }

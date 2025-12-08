@@ -3,12 +3,13 @@ import { z } from 'zod';
 import { WarehouseType } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
-import { requireAdmin } from '../middleware/roleGuard';
+import { requireStaff } from '../middleware/roleGuard';
 
 const router = Router();
 
 router.get('/', async (_req, res) => {
   const customers = await prisma.customer.findMany({
+    orderBy: { name: 'asc' },
     include: {
       warehouse: true,
       invoices: true,
@@ -30,7 +31,7 @@ const createCustomerSchema = z.object({
   logo: z.string().optional(),
 });
 
-router.post('/', requireAdmin, async (req, res, next) => {
+router.post('/', requireStaff, async (req, res, next) => {
   try {
     const body = createCustomerSchema.parse(req.body);
 
@@ -63,6 +64,7 @@ router.get('/:customerId/depot', async (req, res, next) => {
         warehouse: {
           include: {
             stockLocations: {
+              where: { quantity: { gt: 0 } },
               include: {
                 lot: {
                   include: {
@@ -106,7 +108,7 @@ router.get('/:customerId/notes', async (req, res, next) => {
   }
 });
 
-router.post('/:customerId/notes', requireAdmin, async (req, res, next) => {
+router.post('/:customerId/notes', requireStaff, async (req, res, next) => {
   try {
     const body = noteSchema.parse(req.body);
     const note = await prisma.customerNote.create({

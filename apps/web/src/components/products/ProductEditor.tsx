@@ -117,6 +117,8 @@ export function ProductEditor({ product, onSaved, canEditStock = false, currentU
   };
 
   const lots = product.lots;
+  const productOnHand = product.onHandQuantity ?? product.totalQuantity ?? 0;
+  const productCustomerStock = product.customerQuantity ?? 0;
 
   const handleLotQuantityChange = (lotId: string, value: string) => {
     setLotQuantityInputs((prev) => ({ ...prev, [lotId]: value }));
@@ -131,6 +133,9 @@ export function ProductEditor({ product, onSaved, canEditStock = false, currentU
     queryClient.setQueryData<ProductSummary[]>(['products'], (previous) =>
       previous?.map((item) => (item.id === updated.id ? updated : item)) ?? previous,
     );
+    queryClient.invalidateQueries({
+      predicate: (query) => Array.isArray(query.queryKey) && query.queryKey[0] === 'products',
+    });
   };
 
   const handleLotQuantitySave = async (lotId: string) => {
@@ -324,11 +329,14 @@ export function ProductEditor({ product, onSaved, canEditStock = false, currentU
         <div className="flex flex-wrap items-center gap-4 border-t border-slate-800 pt-4">
           <div>
             <p className="text-xs uppercase tracking-widest text-slate-500">Toplam Stok</p>
-            <p className="text-2xl font-semibold text-white">{product.totalQuantity} Adet</p>
+            <p className="text-2xl font-semibold text-white">{productOnHand} Adet</p>
+            <p className="text-xs text-slate-400">
+              Depo: {productOnHand} • Müşteri: {productCustomerStock}
+            </p>
             {product.criticalStockLevel ? (
               <p className="text-xs text-slate-500">
                 Kritik seviye: {product.criticalStockLevel} •{' '}
-                {product.totalQuantity < product.criticalStockLevel ? 'Altında' : 'Üstünde'}
+                {productOnHand < product.criticalStockLevel ? 'Altında' : 'Üstünde'}
               </p>
             ) : null}
           </div>
@@ -410,7 +418,12 @@ export function ProductEditor({ product, onSaved, canEditStock = false, currentU
               <div key={lot.id} className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm">
                 <div className="flex items-center justify-between text-white">
                   <span className="font-mono text-xs">Lot {lot.lotNumber}</span>
-                  <span className="text-cyan-300">{lot.quantity} Adet</span>
+                  <div className="text-right text-xs text-slate-300">
+                    <p className="text-base font-semibold text-cyan-300">
+                      Depo {lot.onHandQuantity ?? lot.trackedQuantity ?? lot.quantity}
+                    </p>
+                    {lot.customerQuantity ? <p className="text-slate-400">Müşteri {lot.customerQuantity}</p> : null}
+                  </div>
                 </div>
                 <div className="text-xs text-slate-400">
                   SKT: {formatExpiry(lot.expiryDate)} • Barkod: {lot.barcode ?? '—'}
