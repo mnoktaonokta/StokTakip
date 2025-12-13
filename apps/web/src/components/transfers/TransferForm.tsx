@@ -9,7 +9,6 @@ import { z } from 'zod';
 
 import { useApiMutation, useApiQuery } from '@/hooks/useApi';
 import type { ProductSummary, WarehouseWithStock } from '@/types/api';
-import { BarcodeScanner } from '../barcode/BarcodeScanner';
 
 const transferSchema = z.object({
   fromWarehouseId: z.string(),
@@ -183,18 +182,7 @@ export function TransferForm() {
         </button>
       </form>
 
-      <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6">
-        <h2 className="text-xl font-semibold text-white">iOS Barkod Tarama</h2>
-        <p className="text-sm text-slate-400">Kamera izni vererek lotu otomatik seçebilirsiniz.</p>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-800">
-          <BarcodeScanner
-            onDetected={(value) => {
-              setBarcode(value);
-              toast.success(`Barkod okundu: ${value}`);
-            }}
-          />
-        </div>
-      </div>
+      {/* Kamera ile barkod tarama kaldırıldı */}
     </div>
   );
 }
