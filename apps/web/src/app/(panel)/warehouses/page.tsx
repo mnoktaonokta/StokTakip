@@ -615,8 +615,9 @@ export default function WarehousesPage() {
 
           <div className="divide-y divide-slate-800">
             {filteredWarehouses.map((warehouse) => {
-              const totalQuantity = warehouse.stockLocations.reduce((sum, loc) => sum + loc.quantity, 0);
-              const totalValue = warehouse.stockLocations.reduce(
+              const locations = warehouse.stockLocations ?? [];
+              const totalQuantity = locations.reduce((sum, loc) => sum + loc.quantity, 0);
+              const totalValue = locations.reduce(
                 (sum, loc) => sum + loc.quantity * (loc.lot.product.salePrice ?? 0),
                 0,
               );
