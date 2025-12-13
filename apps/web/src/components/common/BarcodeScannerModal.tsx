@@ -21,16 +21,17 @@ export function BarcodeScannerModal({ onScan, onClose }: BarcodeScannerModalProp
         const scanner = new Html5Qrcode(regionId);
         scannerRef.current = scanner;
 
-        const qrboxWidth = Math.min(window.innerWidth - 40, 420);
+        // Mobilde odak için 720p hedefleyip kare kutuyu biraz yükseltelim
+        const qrboxWidth = Math.min(window.innerWidth - 32, 380);
         const config = {
-          fps: 20, // hızlı tarama denemesi
-          qrbox: { width: qrboxWidth, height: 140 }, // 1D barkod için daha yatay alan
+          fps: 12, // orta hız, daha stabil odak
+          qrbox: { width: qrboxWidth, height: 220 }, // 1D barkod için geniş ve yeterli yükseklik
           // aspectRatio verilmedi; kamera doğal oranını kullanacak
-          disableFlip: false, // bazı cihazlarda mirroring açıkken daha iyi okuyabiliyor
+          disableFlip: false, // bazı cihazlarda mirroring açıkken 1D barkod daha iyi
           videoConstraints: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
           rememberLastUsedCamera: true,
           supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
