@@ -45,7 +45,8 @@ export function WarehouseCard({ warehouse, onDeleted, onStockUpdated }: Warehous
     }
   };
 
-  const total = warehouse.stockLocations.reduce((sum, loc) => sum + loc.quantity, 0);
+  const locations = warehouse.stockLocations ?? [];
+  const total = locations.reduce((sum, loc) => sum + loc.quantity, 0);
   const uniqueLots = new Set(warehouse.stockLocations.map((loc) => loc.lotId)).size;
 
   return (
