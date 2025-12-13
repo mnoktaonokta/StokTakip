@@ -58,10 +58,8 @@ export default function WarehousesPage() {
   );
 
   const stockSummary = useMemo(() => {
-    if (!selectedWarehouse) {
-      return { totalItems: 0, totalValue: 0 };
-    }
-    return selectedWarehouse.stockLocations.reduce(
+    const locations = selectedWarehouse?.stockLocations ?? [];
+    return locations.reduce(
       (acc, location) => {
         acc.totalItems += location.quantity;
         acc.totalValue += location.quantity * (location.lot.product.salePrice ?? 0);
