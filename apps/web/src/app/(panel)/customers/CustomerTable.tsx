@@ -207,7 +207,7 @@ export function CustomerTable({ customers }: CustomerTableProps) {
 
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto overscroll-contain">
-          <div className="w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-900/95 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-900/95 p-6 shadow-2xl max-h-[90vh] h-[90vh] overflow-y-auto overscroll-contain pb-24">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-500">Yeni Müşteri</p>
