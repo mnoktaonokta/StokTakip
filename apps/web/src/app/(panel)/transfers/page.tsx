@@ -9,8 +9,8 @@ import { toast } from 'sonner';
 import { API_URL, DEV_USER_ID } from '@/lib/api-client';
 import { apiFetch } from '@/lib/api-client/client';
 import { LogModal } from '@/components/logs/LogModal';
-import { Camera, Trash2 } from 'lucide-react';
-import { BarcodeScannerModal } from '@/components/common/BarcodeScannerModal';
+import { Trash2 } from 'lucide-react';
+// Kamera ile tarama kaldırıldı
 
 // --- TİP TANIMLARI ---
 type Warehouse = { id: string; name: string; type: string; };
@@ -95,7 +95,7 @@ export default function TransferPage() {
   const [showLogModal, setShowLogModal] = useState(false);
   const [warehouseStock, setWarehouseStock] = useState<WarehouseStockLocation[]>([]);
   const [isStockLoading, setIsStockLoading] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
+  // Kamera ile tarama kaldırıldı
 
   // DEBUG
   const [lastScannedDebug, setLastScannedDebug] = useState('');
@@ -553,14 +553,6 @@ export default function TransferPage() {
                             }}
                             className="flex-1 rounded-lg border border-slate-700 bg-slate-800 p-3 text-white placeholder-slate-500 focus:ring-cyan-500"
                         />
-                         <button
-                           type="button"
-                           onClick={() => setShowScanner(true)}
-                           className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center"
-                           title="Kamera ile Tara"
-                        >
-                            <Camera className="size-5" />
-                        </button>
                         <button
                            type="button"
                            onClick={() => handleSearch()}
@@ -720,18 +712,6 @@ export default function TransferPage() {
         </div>
 
       </div>
-
-      {showScanner && (
-        <BarcodeScannerModal
-          onClose={() => setShowScanner(false)}
-          onScan={(code) => {
-            setSearchTerm(code);
-            // Modal kapandıktan sonra kısa bir gecikmeyle aramayı tetikle
-            setTimeout(() => handleSearch(code), 300);
-            toast.success('Barkod okundu');
-          }}
-        />
-      )}
 
       {showLogModal && (
         <LogModal
