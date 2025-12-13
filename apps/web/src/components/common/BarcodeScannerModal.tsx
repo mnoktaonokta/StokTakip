@@ -21,16 +21,16 @@ export function BarcodeScannerModal({ onScan, onClose }: BarcodeScannerModalProp
         const scanner = new Html5Qrcode(regionId);
         scannerRef.current = scanner;
 
-        const qrboxWidth = Math.min(window.innerWidth - 40, 360);
+        const qrboxWidth = Math.min(window.innerWidth - 40, 420);
         const config = {
-          fps: 15, // mobilde daha akıcı tarama
-          qrbox: { width: qrboxWidth, height: 220 }, // 1D barkod için geniş dikdörtgen
-          aspectRatio: 1.777, // 16:9
-          disableFlip: true, // aynalama kapalı
+          fps: 20, // hızlı tarama denemesi
+          qrbox: { width: qrboxWidth, height: 140 }, // 1D barkod için daha yatay alan
+          // aspectRatio verilmedi; kamera doğal oranını kullanacak
+          disableFlip: false, // bazı cihazlarda mirroring açıkken daha iyi okuyabiliyor
           videoConstraints: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
           rememberLastUsedCamera: true,
           supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
@@ -39,18 +39,27 @@ export function BarcodeScannerModal({ onScan, onClose }: BarcodeScannerModalProp
             Html5QrcodeSupportedFormats.EAN_8,
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
+            Html5QrcodeSupportedFormats.CODABAR,
+            Html5QrcodeSupportedFormats.ITF,
             Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
             Html5QrcodeSupportedFormats.DATA_MATRIX, // karekod
           ],
           experimentalFeatures: {
-            // Destekliyse native BarcodeDetector kullanır (Safari/Android için daha hızlı)
             useBarCodeDetectorIfSupported: true,
           },
         };
 
         // Arka kamerayı ("environment") tercih et
+        // Mümkünse arka kameranın deviceId'sini seç
+        const cameras = await Html5Qrcode.getCameras().catch(() => []);
+        const backCamera = Array.isArray(cameras)
+          ? cameras.find((c) => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('arka'))
+          : undefined;
+
         await scanner.start(
-          { facingMode: { ideal: 'environment' } }, // arka kamerayı tercih et
+          backCamera ? { deviceId: backCamera.id } : { facingMode: { ideal: 'environment' } },
           config,
           (decodedText) => {
             onScan(decodedText);
