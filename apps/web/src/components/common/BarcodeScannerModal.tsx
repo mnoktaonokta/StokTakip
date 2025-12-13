@@ -1,3 +1,5 @@
+'use client';
+
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -20,32 +22,36 @@ export function BarcodeScannerModal({ onScan, onClose }: BarcodeScannerModalProp
         scannerRef.current = scanner;
 
         const config = {
-          fps: 10, // Saniyedeki kare sayısı (10-15 ideal)
-          qrbox: { width: 250, height: 150 }, // Tarama alanı boyutu (dikdörtgen barkodlar için geniş)
-          aspectRatio: 1.0,
-          disableFlip: false,
+          fps: 12, // mobilde akıcı ama batarya dostu
+          qrbox: { width: 320, height: 200 }, // geniş alan: EAN/Code128 için daha stabil
+          aspectRatio: 1.777, // yatay dikdörtgen barkodlar için 16:9
+          disableFlip: true, // aynalama kapalı, decode hatalarını azaltır
           formatsToSupport: [
             Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.DATA_MATRIX, // Gerekirse karekodlar için
-          ]
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.DATA_MATRIX, // karekod
+          ],
+          experimentalFeatures: {
+            // Destekliyse native BarcodeDetector kullanır (Safari/Android için daha hızlı)
+            useBarCodeDetectorIfSupported: true,
+          },
         };
 
         // Arka kamerayı ("environment") tercih et
         await scanner.start(
-          { facingMode: 'environment' },
+          { facingMode: { ideal: 'environment' } }, // arka kamerayı tercih et
           config,
           (decodedText) => {
-            // Başarılı okuma
             onScan(decodedText);
             stopScanner();
             onClose();
           },
-          (errorMessage) => {
-            // Okuma hatası (her karede olur, loglamaya gerek yok)
-            // console.log(errorMessage);
-          }
+          () => {
+            // kare bazlı decode hatalarını yoksay
+          },
         );
       } catch (err) {
         console.error('Kamera başlatılamadı:', err);
