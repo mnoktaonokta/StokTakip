@@ -1,6 +1,10 @@
-'use client';
+import 'use client';
 
-import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from 'html5-qrcode';
+import {
+  BrowserMultiFormatReader,
+  IScannerControls,
+} from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -11,92 +15,69 @@ interface BarcodeScannerModalProps {
 
 export function BarcodeScannerModal({ onScan, onClose }: BarcodeScannerModalProps) {
   const [error, setError] = useState<string | null>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const regionId = 'reader-container'; // HTML element ID for the scanner
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
 
   useEffect(() => {
-    // Component mount olduğunda scanner'ı başlat
     const startScanner = async () => {
+      if (!videoRef.current) return;
+
       try {
-        const scanner = new Html5Qrcode(regionId);
-        scannerRef.current = scanner;
+        const hints = new Map();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.CODE_39,
+          BarcodeFormat.CODE_93,
+          BarcodeFormat.ITF,
+          BarcodeFormat.CODABAR,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.DATA_MATRIX,
+        ]);
 
-        // Mobilde odak için 720p hedefleyip kare kutuyu biraz yükseltelim
-        const qrboxWidth = Math.min(window.innerWidth - 32, 380);
-        const config = {
-          fps: 12, // orta hız, daha stabil odak
-          qrbox: { width: qrboxWidth, height: 220 }, // 1D barkod için geniş ve yeterli yükseklik
-          // aspectRatio verilmedi; kamera doğal oranını kullanacak
-          disableFlip: false, // bazı cihazlarda mirroring açıkken 1D barkod daha iyi
-          videoConstraints: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          rememberLastUsedCamera: true,
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.CODE_93,
-            Html5QrcodeSupportedFormats.CODABAR,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.DATA_MATRIX, // karekod
-          ],
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true,
-          },
-        };
+        const reader = new BrowserMultiFormatReader(hints);
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+        const backDevice = devices.find((d) =>
+          d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('arka'),
+        );
 
-        // Arka kamerayı ("environment") tercih et
-        // Mümkünse arka kameranın deviceId'sini seç
-        const cameras = await Html5Qrcode.getCameras().catch(() => []);
-        const backCamera = Array.isArray(cameras)
-          ? cameras.find((c) => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('arka'))
-          : undefined;
-
-        await scanner.start(
-          backCamera ? { deviceId: backCamera.id } : { facingMode: { ideal: 'environment' } },
-          config,
-          (decodedText) => {
-            onScan(decodedText);
-            stopScanner();
-            onClose();
-          },
-          () => {
+        const controls = await reader.decodeFromVideoDevice(
+          backDevice?.deviceId ?? undefined,
+          videoRef.current,
+          (result, err) => {
+            if (result) {
+              onScan(result.getText());
+              stopScanner();
+              onClose();
+            }
             // kare bazlı decode hatalarını yoksay
           },
         );
+
+        controlsRef.current = controls;
       } catch (err) {
         console.error('Kamera başlatılamadı:', err);
         setError('Kamera başlatılamadı. İzinleri kontrol edin.');
       }
     };
 
-    // DOM hazır olunca başlat
     const timer = setTimeout(() => {
-        startScanner();
-    }, 100);
+      startScanner();
+    }, 150);
 
     return () => {
       clearTimeout(timer);
       stopScanner();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [onClose, onScan]);
 
   const stopScanner = () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      scannerRef.current
-        .stop()
-        .then(() => {
-          scannerRef.current?.clear();
-        })
-        .catch((err) => console.error('Scanner durdurma hatası:', err));
+    try {
+      controlsRef.current?.stop();
+    } catch (err) {
+      console.error('Scanner durdurma hatası:', err);
     }
   };
 
@@ -123,14 +104,20 @@ export function BarcodeScannerModal({ onScan, onClose }: BarcodeScannerModalProp
             <p className="mb-2 text-xl font-bold">Hata</p>
             <p>{error}</p>
             <button
-               onClick={onClose}
-               className="mt-6 rounded-lg bg-slate-800 px-6 py-2 text-white"
+              onClick={onClose}
+              className="mt-6 rounded-lg bg-slate-800 px-6 py-2 text-white"
             >
               Kapat
             </button>
           </div>
         ) : (
-           <div id={regionId} className="w-full max-w-md overflow-hidden rounded-lg bg-black"></div>
+          <video
+            ref={videoRef}
+            className="w-full max-w-md overflow-hidden rounded-lg bg-black object-contain"
+            muted
+            playsInline
+            autoPlay
+          />
         )}
         
         {!error && (
