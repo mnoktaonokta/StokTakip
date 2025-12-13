@@ -31,8 +31,11 @@ export function BarcodeScannerModal({ onScan, onClose }: BarcodeScannerModalProp
               target: containerRef.current,
               constraints: {
                 facingMode: 'environment',
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                // Torch denemesi (destekleyen cihazlarda)
+                // @ts-expect-error advanced may not exist on types
+                advanced: [{ torch: true }],
               },
             },
             locator: {
