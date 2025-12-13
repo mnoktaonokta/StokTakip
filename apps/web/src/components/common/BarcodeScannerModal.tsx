@@ -1,6 +1,6 @@
 'use client';
 
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from 'html5-qrcode';
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -21,11 +21,19 @@ export function BarcodeScannerModal({ onScan, onClose }: BarcodeScannerModalProp
         const scanner = new Html5Qrcode(regionId);
         scannerRef.current = scanner;
 
+        const qrboxWidth = Math.min(window.innerWidth - 40, 360);
         const config = {
-          fps: 12, // mobilde akıcı ama batarya dostu
-          qrbox: { width: 320, height: 200 }, // geniş alan: EAN/Code128 için daha stabil
-          aspectRatio: 1.777, // yatay dikdörtgen barkodlar için 16:9
-          disableFlip: true, // aynalama kapalı, decode hatalarını azaltır
+          fps: 15, // mobilde daha akıcı tarama
+          qrbox: { width: qrboxWidth, height: 220 }, // 1D barkod için geniş dikdörtgen
+          aspectRatio: 1.777, // 16:9
+          disableFlip: true, // aynalama kapalı
+          videoConstraints: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          rememberLastUsedCamera: true,
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
           formatsToSupport: [
             Html5QrcodeSupportedFormats.EAN_13,
             Html5QrcodeSupportedFormats.EAN_8,
