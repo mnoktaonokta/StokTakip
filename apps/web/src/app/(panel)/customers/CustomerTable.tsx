@@ -55,6 +55,17 @@ export function CustomerTable({ customers }: CustomerTableProps) {
     };
   }, [logoPreview]);
 
+  // Modal açıksa body scroll'u kilitle (mobilde altta kalan butona erişim için)
+  useEffect(() => {
+    if (isFormOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isFormOpen]);
+
   const filteredCustomers = useMemo(() => {
     if (query.trim().length < 3) {
       return customers;
@@ -195,7 +206,7 @@ export function CustomerTable({ customers }: CustomerTableProps) {
       </div>
 
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto overscroll-contain">
           <div className="w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-900/95 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="mb-6 flex items-center justify-between">
               <div>
