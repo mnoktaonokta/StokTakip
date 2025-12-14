@@ -557,7 +557,7 @@ export function InvoiceBuilder({ onClose }: InvoiceBuilderProps) {
             <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-900/70 p-4 text-sm text-slate-200">
               <div className="flex justify-between">
                 <span>Toplam Miktar</span>
-                <span className="font-semibold">{items.reduce((sum, item) => sum + item.quantity, 0)} Ad</span>
+                <span className="font-semibold">{(items ?? []).reduce((sum, item) => sum + item.quantity, 0)} Ad</span>
               </div>
               {categorySummary.length > 0 && (
                 <div className="space-y-1 text-xs text-slate-400">

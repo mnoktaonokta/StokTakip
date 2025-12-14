@@ -8,7 +8,7 @@ export default async function CustomersPage() {
 
   const enriched: CustomerRow[] = customers.map((customer) => {
     const stockLocations = customer.warehouse?.stockLocations ?? [];
-    const totalValue = stockLocations.reduce(
+    const totalValue = (stockLocations ?? []).reduce(
       (sum, location) => sum + location.quantity * (location.lot.product.salePrice ?? 0),
       0,
     );
