@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { CustomerNotesCard } from '../CustomerNotesCard';
+import { CustomerEditButton } from '@/components/customers/CustomerEditButton';
 
 import { apiFetch as apiFetchServer } from '@/lib/api-client/server';
 import type { Customer } from '@/types/api';
@@ -98,11 +99,6 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       style: 'border border-slate-700 text-slate-200 hover:bg-slate-800/60',
     },
     {
-      label: 'Müşteri Bilgilerini Güncelle',
-      href: `/customers/${customer.id}/edit`,
-      style: 'border border-slate-700 text-slate-200 hover:bg-slate-800/60',
-    },
-    {
       label: 'Müşteriyi Sil',
       href: `/customers/${customer.id}/delete`,
       style: 'bg-rose-600/80 text-white hover:bg-rose-500',
@@ -183,6 +179,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
             {action.label}
           </Link>
         ))}
+        <CustomerEditButton customer={customer} />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

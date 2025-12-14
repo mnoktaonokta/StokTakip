@@ -31,6 +31,8 @@ const createCustomerSchema = z.object({
   logo: z.string().optional(),
 });
 
+const updateCustomerSchema = createCustomerSchema.partial();
+
 router.post('/', requireStaff, async (req, res, next) => {
   try {
     const body = createCustomerSchema.parse(req.body);
@@ -51,6 +53,32 @@ router.post('/', requireStaff, async (req, res, next) => {
     });
 
     return res.status(201).json(customer);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.put('/:customerId', requireStaff, async (req, res, next) => {
+  try {
+    const body = updateCustomerSchema.parse(req.body);
+    const customer = await prisma.customer.update({
+      where: { id: req.params.customerId },
+      data: {
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.email !== undefined ? { email: body.email || null } : {}),
+        ...(body.phone !== undefined ? { phone: body.phone || null } : {}),
+        ...(body.address !== undefined ? { address: body.address || null } : {}),
+        ...(body.taxOffice !== undefined ? { taxOffice: body.taxOffice || null } : {}),
+        ...(body.taxNumber !== undefined ? { taxNumber: body.taxNumber || null } : {}),
+        ...(body.logo !== undefined ? { logo: body.logo || null } : {}),
+      },
+      include: {
+        warehouse: true,
+        invoices: true,
+        notes: true,
+      },
+    });
+    return res.json(customer);
   } catch (error) {
     return next(error);
   }
