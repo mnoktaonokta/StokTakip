@@ -85,7 +85,8 @@ router.get('/', async (req, res) => {
       orderBy: { name: 'asc' },
     });
 
-    let summary = products.map(serializeProduct);
+    const isAdmin = req.currentUser?.role === 'admin';
+    let summary = products.map((p) => serializeProduct(p, { includePurchasePrice: isAdmin }));
 
     if (minStock !== undefined) {
       summary = summary.filter((product) => product.totalQuantity >= minStock);
@@ -182,7 +183,8 @@ router.get('/:productId', async (req, res) => {
       return res.status(404).json({ message: 'Ürün bulunamadı' });
     }
 
-    return res.json(serializeProduct(product));
+    const isAdmin = req.currentUser?.role === 'admin';
+    return res.json(serializeProduct(product, { includePurchasePrice: isAdmin }));
   } catch (error) {
     console.error('Ürün detayı çekilemedi:', error);
     return res.status(500).json({ message: 'Ürün detayı yüklenemedi' });
@@ -194,23 +196,30 @@ router.put('/:productId', async (req, res) => {
   try {
     const body = productUpdateSchema.parse(req.body);
 
+    const data: Prisma.ProductUpdateInput = {
+      name: body.name,
+      referenceCode: body.referenceCode,
+      brand: body.brand ?? null,
+      category: body.category ?? null,
+      salePrice: body.salePrice ?? null,
+      vatRate: body.vatRate ?? null,
+      criticalStockLevel: body.criticalStockLevel ?? null,
+      ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+    };
+
+    // Alış fiyatı sadece admin güncelleyebilir
+    if (req.currentUser?.role === 'admin') {
+      data.purchasePrice = body.purchasePrice ?? null;
+    }
+
     const updated = await prisma.product.update({
       where: { id: req.params.productId },
-      data: {
-        name: body.name,
-        referenceCode: body.referenceCode,
-        brand: body.brand ?? null,
-        category: body.category ?? null,
-        salePrice: body.salePrice ?? null,
-        purchasePrice: body.purchasePrice ?? null,
-        vatRate: body.vatRate ?? null,
-        criticalStockLevel: body.criticalStockLevel ?? null,
-        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
-      },
+      data,
       include: productInclude,
     });
 
-    return res.json(serializeProduct(updated));
+    const isAdmin = req.currentUser?.role === 'admin';
+    return res.json(serializeProduct(updated, { includePurchasePrice: isAdmin }));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ message: 'Geçersiz veri', issues: error.issues });

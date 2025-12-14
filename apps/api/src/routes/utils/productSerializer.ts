@@ -51,11 +51,12 @@ export const serializeLot = (lot: ProductWithLots['lots'][number]) => {
   };
 };
 
-export const serializeProduct = (product: ProductWithLots) => {
+export const serializeProduct = (product: ProductWithLots, opts?: { includePurchasePrice?: boolean }) => {
   const lotSummaries = product.lots.map(serializeLot);
 
   const onHandQuantity = lotSummaries.reduce((sum, lot) => sum + (lot.onHandQuantity ?? 0), 0);
   const customerQuantity = lotSummaries.reduce((sum, lot) => sum + (lot.customerQuantity ?? 0), 0);
+  const includePurchasePrice = opts?.includePurchasePrice ?? false;
 
   return {
   id: product.id,
@@ -64,7 +65,7 @@ export const serializeProduct = (product: ProductWithLots) => {
   brand: product.brand,
   category: product.category,
   salePrice: product.salePrice ? Number(product.salePrice) : null,
-  purchasePrice: product.purchasePrice ? Number(product.purchasePrice) : null,
+  purchasePrice: includePurchasePrice && product.purchasePrice ? Number(product.purchasePrice) : null,
   vatRate: product.vatRate ? Number(product.vatRate) : null,
   isActive: product.isActive,
   criticalStockLevel: product.criticalStockLevel ?? null,
