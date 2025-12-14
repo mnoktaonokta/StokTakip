@@ -14,6 +14,7 @@ interface ProductEditorProps {
   onSaved?: (product: ProductSummary) => void;
   canEditStock?: boolean;
   currentUserId?: string;
+  hidePurchasePrice?: boolean;
 }
 
 const formatExpiry = (value: Lot['expiryDate']) => {
@@ -25,7 +26,13 @@ const formatExpiry = (value: Lot['expiryDate']) => {
   }
 };
 
-export function ProductEditor({ product, onSaved, canEditStock = false, currentUserId }: ProductEditorProps) {
+export function ProductEditor({
+  product,
+  onSaved,
+  canEditStock = false,
+  currentUserId,
+  hidePurchasePrice = false,
+}: ProductEditorProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [formState, setFormState] = useState({
@@ -60,7 +67,7 @@ export function ProductEditor({ product, onSaved, canEditStock = false, currentU
       formState.brand !== (product.brand ?? '') ||
       formState.category !== (product.category ?? '') ||
       formState.salePrice !== (product.salePrice?.toString() ?? '') ||
-      formState.purchasePrice !== (product.purchasePrice?.toString() ?? '') ||
+      (!hidePurchasePrice && formState.purchasePrice !== (product.purchasePrice?.toString() ?? '')) ||
       formState.criticalStockLevel !== (product.criticalStockLevel?.toString() ?? '') ||
       formState.isActive !== product.isActive
     );
@@ -86,21 +93,26 @@ export function ProductEditor({ product, onSaved, canEditStock = false, currentU
         return Number.isFinite(parsed) ? parsed : null;
       };
       const salePrice = parseNumberInput(formState.salePrice);
-      const purchasePrice = parseNumberInput(formState.purchasePrice);
+      const purchasePrice = hidePurchasePrice ? null : parseNumberInput(formState.purchasePrice);
       const criticalStockLevel = parseNumberInput(formState.criticalStockLevel);
+
+      const body: Record<string, unknown> = {
+        name: formState.name.trim(),
+        referenceCode: formState.referenceCode.trim(),
+        brand: formState.brand.trim() || null,
+        category: formState.category.trim() || null,
+        salePrice,
+        criticalStockLevel,
+        isActive: formState.isActive,
+      };
+
+      if (!hidePurchasePrice) {
+        body.purchasePrice = purchasePrice;
+      }
 
       const updated = await apiFetch<ProductSummary>(`/api/products/${product.id}`, {
         method: 'PUT',
-        body: {
-          name: formState.name.trim(),
-          referenceCode: formState.referenceCode.trim(),
-          brand: formState.brand.trim() || null,
-          category: formState.category.trim() || null,
-          salePrice,
-          purchasePrice,
-          criticalStockLevel,
-          isActive: formState.isActive,
-        },
+        body,
       });
       toast.success('Ürün bilgileri güncellendi');
       if (onSaved) {
@@ -287,17 +299,21 @@ export function ProductEditor({ product, onSaved, canEditStock = false, currentU
               className="mt-1 w-full rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-2 text-sm text-white"
             />
           </label>
-          <label className="text-sm text-slate-300">
-            Alış Fiyatı (₺)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formState.purchasePrice}
-              onChange={handleChange('purchasePrice')}
-              className="mt-1 w-full rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-2 text-sm text-white"
-            />
-          </label>
+          {!hidePurchasePrice ? (
+            <label className="text-sm text-slate-300">
+              Alış Fiyatı (₺)
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={formState.purchasePrice}
+                onChange={handleChange('purchasePrice')}
+                className="mt-1 w-full rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-2 text-sm text-white"
+              />
+            </label>
+          ) : (
+            <div />
+          )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm text-slate-300">

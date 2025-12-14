@@ -18,7 +18,8 @@ interface ProductDrawerProps {
 export function ProductDrawer({ productId, onClose, onUpdated }: ProductDrawerProps) {
   const isOpen = Boolean(productId);
   const [showLogs, setShowLogs] = useState(false);
-  const { canEditStock, userId: currentUserId } = useStockManagerAccess();
+  const { canEditStock, userId: currentUserId, role } = useStockManagerAccess();
+  const isAdmin = role === 'admin';
   const { data, isLoading } = useApiQuery<ProductSummary>(
     ['product', productId ?? ''],
     `/api/products/${productId ?? ''}`,
@@ -71,6 +72,7 @@ export function ProductDrawer({ productId, onClose, onUpdated }: ProductDrawerPr
               onSaved={handleSaved}
               canEditStock={canEditStock}
               currentUserId={currentUserId}
+              hidePurchasePrice={!isAdmin}
             />
           ) : null}
           {!isLoading && !data ? (

@@ -10,9 +10,11 @@ export const useStockManagerAccess = () => {
   });
 
   const canEditStock = Boolean(data && (data.role === 'admin' || data.canManageStock));
+  const role = data?.role;
 
   return {
     canEditStock,
     userId: data?.id,
+    role,
   };
 };
