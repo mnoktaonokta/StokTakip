@@ -8,6 +8,7 @@ import { useStockManagerAccess } from '@/hooks/useStockManagerAccess';
 import type { ProductSummary } from '@/types/api';
 import { ProductEditor } from './ProductEditor';
 import { LogModal } from '@/components/logs/LogModal';
+import { useMemo } from 'react';
 
 interface ProductDrawerProps {
   productId: string | null;
@@ -35,6 +36,13 @@ export function ProductDrawer({ productId, onClose, onUpdated }: ProductDrawerPr
     },
     [onClose, onUpdated],
   );
+
+  const visibleProduct = useMemo(() => {
+    if (!data) return null;
+    if (isAdmin) return data;
+    // Çalışanlar için alış fiyatını gizle
+    return { ...data, purchasePrice: null };
+  }, [data, isAdmin]);
 
   if (!isOpen || !productId) {
     return null;
@@ -66,16 +74,16 @@ export function ProductDrawer({ productId, onClose, onUpdated }: ProductDrawerPr
               <p>Ürün bilgileri yükleniyor...</p>
             </div>
           )}
-          {!isLoading && data ? (
+          {!isLoading && visibleProduct ? (
             <ProductEditor
-              product={data}
+              product={visibleProduct}
               onSaved={handleSaved}
               canEditStock={canEditStock}
               currentUserId={currentUserId}
               hidePurchasePrice={!isAdmin}
             />
           ) : null}
-          {!isLoading && !data ? (
+          {!isLoading && !visibleProduct ? (
             <div className="py-20 text-center text-red-400">
               Ürün bilgisi getirilemedi. Lütfen daha sonra tekrar deneyin.
             </div>
