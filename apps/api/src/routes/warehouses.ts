@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { prisma } from '../lib/prisma';
 import { adjustStock } from '../services/stockService';
-import { productInclude } from './utils/productSerializer';
+// import { productInclude } from './utils/productSerializer'; // <-- AĞIR YÜK KAPALI (HIZ İÇİN)
 import { requireAdmin, requireStaff } from '../middleware/roleGuard';
 
 const router = Router();
@@ -16,23 +16,25 @@ const findMainWarehouse = () =>
     select: { id: true },
   });
 
-router.get('/', async (_req, res) => {
-  const warehouses = await prisma.warehouse.findMany({
-    orderBy: { name: 'asc' },
+// HIZLANDIRILMIŞ YAPILANDIRMA
+// Sadece ürünün ana bilgilerini çeker, derin detaylara girmez.
+const warehouseInclude = {
+  customers: true,
+  stockLocations: {
     include: {
-      customers: true,
-      stockLocations: {
+      lot: {
         include: {
-          lot: {
-            include: {
-              product: {
-                include: productInclude,
-              },
-            },
-          },
+          product: true, 
         },
       },
     },
+  },
+};
+
+router.get('/', async (_req, res) => {
+  const warehouses = await prisma.warehouse.findMany({
+    orderBy: { name: 'asc' },
+    include: warehouseInclude,
   });
 
   const priority = {
@@ -71,7 +73,10 @@ router.post('/', requireStaff, async (req, res, next) => {
   try {
     const body = createWarehouseSchema.parse(req.body);
     const { customerId, ...warehouseData } = body;
-    const warehouse = await prisma.warehouse.create({ data: warehouseData });
+    const warehouse = await prisma.warehouse.create({
+      data: warehouseData,
+      include: warehouseInclude,
+    });
 
     if (customerId) {
       await prisma.customer.update({
@@ -108,6 +113,7 @@ router.patch('/:warehouseId', requireStaff, async (req, res, next) => {
     const updated = await prisma.warehouse.update({
       where: { id: req.params.warehouseId },
       data: body,
+      include: warehouseInclude, // <-- KRİTİK DÜZELTME BURADA
     });
     return res.json(updated);
   } catch (error) {
@@ -211,19 +217,21 @@ router.post('/:warehouseId/stock', requireStaff, async (req, res, next) => {
 
     let location;
     try {
-    if (existing) {
-      location = await prisma.stockLocation.update({
-        where: { id: existing.id },
-        data: { quantity: newQuantity },
-      });
-    } else {
-      location = await prisma.stockLocation.create({
-        data: {
+      if (existing) {
+        location = await prisma.stockLocation.update({
+          where: { id: existing.id },
+          data: { quantity: newQuantity },
+          include: { lot: { include: { product: true } } },
+        });
+      } else {
+        location = await prisma.stockLocation.create({
+          data: {
             warehouseId: targetWarehouseId,
-          lotId: body.lotId,
-          quantity: newQuantity,
-        },
-      });
+            lotId: body.lotId,
+            quantity: newQuantity,
+          },
+          include: { lot: { include: { product: true } } },
+        });
       }
     } catch (error) {
       if (delta > 0) {
