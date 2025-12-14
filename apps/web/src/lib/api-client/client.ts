@@ -20,9 +20,6 @@ export async function apiFetch<TResponse>(path: string, options: ApiOptions = {}
   const authToken = await getClientToken();
   if (authToken) {
     defaultHeaders.Authorization = `Bearer ${authToken}`;
-  } else {
-    defaultHeaders['x-user-role'] = 'admin';
-    defaultHeaders['x-user-id'] = DEV_USER_ID;
   }
 
   if (!isFormData) {
