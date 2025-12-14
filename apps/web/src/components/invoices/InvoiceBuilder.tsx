@@ -161,14 +161,14 @@ export function InvoiceBuilder({ onClose }: InvoiceBuilderProps) {
   }, [searchTerm]);
 
   const totals = useMemo(() => {
-    const grossTotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const grossTotal = (items ?? []).reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const discountTotal =
-      items.reduce((sum, item) => {
+      (items ?? []).reduce((sum, item) => {
         const line = item.quantity * item.unitPrice;
         return sum + (line * item.discountPercent) / 100;
       }, 0) + extraDiscount;
     const netTotal = Math.max(grossTotal - discountTotal, 0);
-    const taxTotal = items.reduce((sum, item) => {
+    const taxTotal = (items ?? []).reduce((sum, item) => {
       const line = item.quantity * item.unitPrice;
       const discount = (line * item.discountPercent) / 100;
       const taxable = Math.max(line - discount, 0);

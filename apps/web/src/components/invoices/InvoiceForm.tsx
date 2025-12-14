@@ -60,7 +60,7 @@ export function InvoiceForm() {
 
   const totalAmount = useMemo(
     () =>
-      selectedTransfers.reduce(
+      (selectedTransfers ?? []).reduce(
         (sum, transfer) => sum + transfer.quantity * (transfer.lot.product.salePrice ?? 0),
         0,
       ),

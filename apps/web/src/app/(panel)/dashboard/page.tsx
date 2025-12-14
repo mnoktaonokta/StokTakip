@@ -85,7 +85,7 @@ const getCategoryBreakdown = (products: ProductSummary[]) => {
     counts[key].customer += getCustomerQuantity(product);
   }
 
-  const total = Object.values(counts).reduce((sum, value) => sum + value.onHand + value.customer, 0);
+  const total = Object.values(counts ?? {}).reduce((sum, value) => sum + (value?.onHand ?? 0) + (value?.customer ?? 0), 0);
 
   return { counts, total };
 };
@@ -99,8 +99,8 @@ const getDashboardData = async () => {
       apiFetchServer<Invoice[]>('/api/invoices'),
     ]);
 
-    const totalStock = products.reduce((sum, product) => sum + getOnHandQuantity(product), 0);
-    const customerStock = products.reduce((sum, product) => sum + getCustomerQuantity(product), 0);
+    const totalStock = (products ?? []).reduce((sum, product) => sum + getOnHandQuantity(product), 0);
+    const customerStock = (products ?? []).reduce((sum, product) => sum + getCustomerQuantity(product), 0);
 
     return {
       products,

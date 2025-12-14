@@ -35,7 +35,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   }
 
   const invoices = customer.invoices ?? [];
-  const totalTurnover = invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount ?? 0), 0);
+  const totalTurnover = (invoices ?? []).reduce((sum, invoice) => sum + Number(invoice?.totalAmount ?? 0), 0);
   const openBalance = totalTurnover;
   const chequeBalance = 0;
 
