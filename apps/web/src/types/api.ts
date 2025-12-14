@@ -5,7 +5,6 @@ export interface ProductSummary {
   brand?: string | null;
   category?: string | null;
   salePrice?: number | null;
-  purchasePrice?: number | null;
   vatRate?: number | null;
   isActive: boolean;
   criticalStockLevel?: number | null;

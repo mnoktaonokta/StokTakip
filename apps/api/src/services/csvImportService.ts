@@ -67,7 +67,7 @@ const processInventoryRows = async (rows: CsvRow[], options: CsvImportOptions) =
         brand,
         category: row.category,
         salePrice: row.sale_price ? Number(row.sale_price) : undefined,
-        purchasePrice: row.purchase_price ? Number(row.purchase_price) : undefined,
+        // purchase price removed
         isActive,
         criticalStockLevel: Number.isFinite(criticalStockLevel ?? NaN) ? criticalStockLevel : undefined,
       },
@@ -76,7 +76,7 @@ const processInventoryRows = async (rows: CsvRow[], options: CsvImportOptions) =
         brand: brand ?? undefined,
         category: row.category ?? undefined,
         salePrice: row.sale_price ? Number(row.sale_price) : undefined,
-        purchasePrice: row.purchase_price ? Number(row.purchase_price) : undefined,
+        // purchase price removed
         isActive,
         criticalStockLevel: Number.isFinite(criticalStockLevel ?? NaN) ? criticalStockLevel : undefined,
       },
@@ -164,7 +164,7 @@ const columnAliases = {
   barcode: ['barkod', 'barkodu', 'barcode'],
   category: ['kategori', 'category'],
   salePrice: ['satis_fiyati', 'satis', 'satis_tutari', 'sale_price'],
-  purchasePrice: ['alis_fiyati', 'alis', 'purchase_price'],
+  // purchasePrice removed
   active: ['aktif_pasif', 'aktif_pasif_', 'aktif_pasif?'],
   criticalStock: ['kritik_stok_seviyesi', 'kritik_stok'],
 };
@@ -200,7 +200,7 @@ const mapRowToCsvRow = (row: Record<string, unknown>): CsvRow => {
     quantity,
     barcode: pick(columnAliases.barcode) || undefined,
     sale_price: pick(columnAliases.salePrice) || undefined,
-    purchase_price: pick(columnAliases.purchasePrice) || undefined,
+    // purchase price removed
     is_active: isActive,
     critical_stock: criticalStock,
   };

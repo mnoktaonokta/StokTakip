@@ -7,10 +7,9 @@ import type { ProductSummary } from '@/types/api';
 
 interface Props {
   products: ProductSummary[];
-  hidePurchasePrice?: boolean;
 }
 
-export function ProductTable({ products, hidePurchasePrice }: Props) {
+export function ProductTable({ products }: Props) {
   const [selectedProduct, setSelectedProduct] = useState<ProductSummary | null>(null);
 
   return (
@@ -22,7 +21,6 @@ export function ProductTable({ products, hidePurchasePrice }: Props) {
               <th className="px-4 py-3">Ürün</th>
               <th className="px-4 py-3">Referans</th>
               <th className="px-4 py-3 text-right">Toplam Stok</th>
-              {!hidePurchasePrice ? <th className="px-4 py-3 text-right">Alış</th> : null}
               <th className="px-4 py-3 text-right">Satış</th>
               <th className="px-4 py-3 text-right">Lot</th>
             </tr>
@@ -43,11 +41,6 @@ export function ProductTable({ products, hidePurchasePrice }: Props) {
                     </span>
                   ) : null}
                 </td>
-                {!hidePurchasePrice ? (
-                  <td className="px-4 py-4 text-right text-sm text-slate-200">
-                    {product.purchasePrice ? `${product.purchasePrice.toLocaleString('tr-TR')} ₺` : '—'}
-                  </td>
-                ) : null}
                 <td className="px-4 py-4 text-right text-sm text-slate-200">
                   {product.salePrice ? `${product.salePrice.toLocaleString('tr-TR')} ₺` : '—'}
                 </td>

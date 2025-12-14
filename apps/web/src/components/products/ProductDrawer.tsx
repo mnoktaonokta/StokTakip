@@ -39,10 +39,8 @@ export function ProductDrawer({ productId, onClose, onUpdated }: ProductDrawerPr
 
   const visibleProduct = useMemo(() => {
     if (!data) return null;
-    if (isAdmin) return data;
-    // Çalışanlar için alış fiyatını gizle
     return { ...data, purchasePrice: null };
-  }, [data, isAdmin]);
+  }, [data]);
 
   if (!isOpen || !productId) {
     return null;

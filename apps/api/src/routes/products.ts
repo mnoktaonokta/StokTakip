@@ -15,7 +15,6 @@ const productUpdateSchema = z.object({
   brand: z.string().max(100).optional().nullable(),
   category: z.string().max(100).optional().nullable(),
   salePrice: z.number().nonnegative().optional().nullable(),
-  purchasePrice: z.number().nonnegative().optional().nullable(),
   isActive: z.boolean().optional(),
   criticalStockLevel: z.number().int().min(0).optional().nullable(),
   vatRate: z.number().nonnegative().optional().nullable(),
@@ -85,8 +84,7 @@ router.get('/', async (req, res) => {
       orderBy: { name: 'asc' },
     });
 
-    const isAdmin = req.currentUser?.role === 'admin';
-    let summary = products.map((p) => serializeProduct(p, { includePurchasePrice: isAdmin }));
+    let summary = products.map((p) => serializeProduct(p));
 
     if (minStock !== undefined) {
       summary = summary.filter((product) => product.totalQuantity >= minStock);
@@ -183,8 +181,7 @@ router.get('/:productId', async (req, res) => {
       return res.status(404).json({ message: 'Ürün bulunamadı' });
     }
 
-    const isAdmin = req.currentUser?.role === 'admin';
-    return res.json(serializeProduct(product, { includePurchasePrice: isAdmin }));
+    return res.json(serializeProduct(product));
   } catch (error) {
     console.error('Ürün detayı çekilemedi:', error);
     return res.status(500).json({ message: 'Ürün detayı yüklenemedi' });
@@ -206,11 +203,6 @@ router.put('/:productId', async (req, res) => {
       criticalStockLevel: body.criticalStockLevel ?? null,
       ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
     };
-
-    // Alış fiyatı sadece admin güncelleyebilir
-    if (req.currentUser?.role === 'admin') {
-      data.purchasePrice = body.purchasePrice ?? null;
-    }
 
     const updated = await prisma.product.update({
       where: { id: req.params.productId },
