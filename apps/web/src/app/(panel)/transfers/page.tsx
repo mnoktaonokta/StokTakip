@@ -40,6 +40,11 @@ type WarehouseStockLocation = {
     productId: string;
     barcode: string | null;
     expiryDate: string | null;
+    product: {
+      id: string;
+      name: string;
+      referenceCode: string;
+    };
   };
 };
 
@@ -294,6 +299,48 @@ export default function TransferPage() {
     setTransferItems((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleAddAllFromSource = () => {
+    if (!fromWarehouseId) {
+      toast.error('Önce kaynak depo seçin');
+      return;
+    }
+    if (warehouseStock.length === 0) {
+      toast.error('Bu depoda aktarılacak stok yok');
+      return;
+    }
+
+    if (sourceWarehouse?.type === 'MAIN') {
+      const ok = window.confirm(
+        `Ana depodaki tüm stok (${warehouseStock.length} lot) transfer listesine eklenecek. Emin misiniz?`,
+      );
+      if (!ok) return;
+    }
+
+    const bulkItems: TransferItem[] = warehouseStock.map((loc) => {
+      const lot: LotWithAvailability = {
+        id: loc.lotId,
+        lotNumber: loc.lot.lotNumber,
+        quantity: loc.quantity,
+        warehouseQuantity: loc.quantity,
+        barcode: loc.lot.barcode,
+        expiryDate: loc.lot.expiryDate,
+      };
+      return {
+        id: `${loc.id}-${Date.now()}`,
+        product: {
+          id: loc.lot.product.id,
+          name: loc.lot.product.name,
+          referenceCode: loc.lot.product.referenceCode,
+        },
+        lot,
+        quantity: loc.quantity,
+      };
+    });
+
+    setTransferItems(bulkItems);
+    toast.success(`${bulkItems.length} lot listeye eklendi`);
+  };
+
   const handleSetMaxQuantity = () => {
     if (!selectedLot) return;
     const max = selectedLot.warehouseQuantity;
@@ -524,6 +571,15 @@ export default function TransferPage() {
                         ))}
                     </select>
                     {transferItems.length > 0 && <p className="text-xs text-amber-500 mt-1">Listede ürün varken kaynak depo değiştirilemez.</p>}
+                    {fromWarehouseId && warehouseStock.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleAddAllFromSource}
+                        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20"
+                      >
+                        Depodaki Tüm Ürünleri Listeye Ekle
+                      </button>
+                    )}
                 </div>
             </div>
 
