@@ -211,7 +211,7 @@ router.put('/:productId', async (req, res) => {
     });
 
     const isAdmin = req.currentUser?.role === 'admin';
-    return res.json(serializeProduct(updated, { includePurchasePrice: isAdmin }));
+    return res.json(serializeProduct(updated));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ message: 'Geçersiz veri', issues: error.issues });
