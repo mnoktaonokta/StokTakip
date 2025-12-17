@@ -19,7 +19,7 @@ import customerRouter from './routes/customers';
 import logRouter from './routes/logs';
 import csvRouter from './routes/csv';
 import lotRouter from './routes/lots';
-// import userRouter from './routes/users'; // Eğer users dosyası varsa bunu açarız, şimdilik dursun.
+import userRouter from './routes/users'; // <--- YENİ EKLENDİ ✅
 
 export const createServer = () => {
   const app = express();
@@ -46,7 +46,7 @@ export const createServer = () => {
   app.use(urlencoded({ extended: true }));
   app.use(json());
 
-  // --- ROUTES (DÜZELTME: Başına /api eklendi) ---
+  // --- ROUTES ---
   app.use('/api/products', productRouter);
   app.use('/api/warehouses', warehouseRouter);
   app.use('/api/transfers', transferRouter);
@@ -55,9 +55,7 @@ export const createServer = () => {
   app.use('/api/logs', logRouter);
   app.use('/api/csv', csvRouter);
   app.use('/api/lots', lotRouter);
-  
-  // Not: Loglarda '/api/users/me' hatası da vardı. Eğer user router'ınız varsa onu da eklemeliyiz.
-  // Ama şimdilik ürünleri ve depolara odaklanalım.
+  app.use('/api/users', userRouter); // <--- YENİ EKLENDİ ✅
 
   app.use(errorHandler);
 
