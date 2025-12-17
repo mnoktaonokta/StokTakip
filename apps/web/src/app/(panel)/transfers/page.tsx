@@ -158,6 +158,10 @@ export default function TransferPage() {
 
   const mainWarehouse = warehouses.find((w) => w.type === 'MAIN');
   const mainWarehouseId = mainWarehouse?.id ?? '';
+  const sourceWarehouse = useMemo(
+    () => warehouses.find((w) => w.id === fromWarehouseId),
+    [warehouses, fromWarehouseId],
+  );
   const destinationWarehouses = warehouses.filter((w) => w.id !== fromWarehouseId);
   const lotQuantityMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -288,6 +292,17 @@ export default function TransferPage() {
 
   const handleRemoveItem = (id: string) => {
     setTransferItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleSetMaxQuantity = () => {
+    if (!selectedLot) return;
+    const max = selectedLot.warehouseQuantity;
+    if (max <= 0) return;
+    if (sourceWarehouse?.type === 'MAIN') {
+      const ok = window.confirm(`Ana depodaki ${max} adet ürünün tamamını göndermek istediğinizden emin misiniz?`);
+      if (!ok) return;
+    }
+    setCurrentQuantity(max);
   };
 
   const handleSubmitAll = async () => {
@@ -599,30 +614,40 @@ export default function TransferPage() {
                                     </select>
                                     </label>
                                     
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex-1">
-                                            <label className="block text-sm font-medium text-slate-400 mb-1">Miktar</label>
-                                            <input 
-                                                type="number"
-                                                value={selectedLot ? currentQuantity : ''}
-                                                disabled={!selectedLot}
-                                                min={1}
-                                                max={selectedLot?.warehouseQuantity || 1}
-                                                onChange={(event) => {
-                                                    const value = Number(event.target.value);
-                                                    setCurrentQuantity(value);
-                                                }}
-                                                className="w-full rounded-lg border border-slate-700 bg-slate-800 p-3 text-white"
-                                            />
-                                        </div>
-                                        <button 
+                                    <div className="flex items-end gap-3">
+                                      <div className="flex-1">
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">Miktar</label>
+                                        <div className="flex gap-2">
+                                          <input
+                                            type="number"
+                                            value={selectedLot ? currentQuantity : ''}
+                                            disabled={!selectedLot}
+                                            min={1}
+                                            max={selectedLot?.warehouseQuantity || 1}
+                                            onChange={(event) => {
+                                              const value = Number(event.target.value);
+                                              setCurrentQuantity(value);
+                                            }}
+                                            className="w-full rounded-lg border border-slate-700 bg-slate-800 p-3 text-white"
+                                          />
+                                          <button
                                             type="button"
-                                            onClick={handleAddToItems}
-                                            disabled={!canAddToItems}
-                                            className={`mt-6 flex-1 py-3 px-4 rounded-xl font-bold transition-colors ${canAddToItems ? 'bg-cyan-500 hover:bg-cyan-600 text-white' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
-                                        >
-                                            Listeye Ekle
-                                        </button>
+                                            onClick={handleSetMaxQuantity}
+                                            disabled={!selectedLot}
+                                            className="rounded-lg border border-amber-500/40 bg-amber-500/20 px-3 text-xs font-semibold text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
+                                          >
+                                            Hepsini Al
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={handleAddToItems}
+                                        disabled={!canAddToItems}
+                                        className={`py-3 px-4 rounded-xl font-bold transition-colors ${canAddToItems ? 'bg-cyan-500 hover:bg-cyan-600 text-white' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
+                                      >
+                                        Listeye Ekle
+                                      </button>
                                     </div>
                                 </div>
                             ) : (
