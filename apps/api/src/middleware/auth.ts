@@ -62,7 +62,8 @@ export const attachCurrentUser = async (req: Request, res: Response, next: NextF
 
     // Email'i normalize et (Küçük harf)
     const normalizedEmail = email.toLowerCase();
-    const isAdminEmail = env.adminEmails.includes(normalizedEmail) || normalizedEmail.includes('admin');
+    // Güvenlik: Sadece ENV listesindeki mailler admin olabilir
+    const isAdminEmail = env.adminEmails.includes(normalizedEmail);
 
     console.log(`🔍 Auth Kontrolü: ${normalizedEmail} (ClerkID: ${userId})`);
 
@@ -76,7 +77,7 @@ export const attachCurrentUser = async (req: Request, res: Response, next: NextF
       create: {
         email: normalizedEmail,
         name: name || 'Kullanıcı',
-        // ADMIN_EMAILS veya 'admin' içeren mailler otomatik admin
+        // Sadece ADMIN_EMAILS listesinde olan mailler admin yapılır
         role: isAdminEmail ? UserRole.admin : UserRole.employee,
       },
     });
