@@ -48,5 +48,6 @@ export const createServer = () => {
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
 
-  // ... (Geri kalan kodlar Cursor'daki ile aynıdır, sadece üstteki CORS kısmını değiştirmeniz yeterli)
-  // Ancak garanti olsun diye CORS ayarını yukarıdaki gibi yaptığınızdan emin olun.
+ 
+  return app;
+};
