@@ -1,3 +1,4 @@
+import express, { json, urlencoded } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import { clerkClient } from '@clerk/express';
@@ -27,11 +28,10 @@ export const createServer = () => {
     const allowedOrigins = env.corsAllowedOrigins;
     const originHeader = req.headers.origin;
 
-    // Server-side istekler (!originHeader), listedekiler veya brndental.online içerenler
     const isAllowed = !originHeader || allowedOrigins.includes(originHeader) || (originHeader && originHeader.includes('brndental.online'));
 
     if (isAllowed) {
-      res.header('Access-Control-Allow-Origin', originHeader || '*'); // Server-side için * veya gelen origin
+      res.header('Access-Control-Allow-Origin', originHeader || '*');
     }
     
     res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
@@ -45,9 +45,22 @@ export const createServer = () => {
   });
 
   app.use(morgan('tiny'));
-  app.use(express.urlencoded({ extended: true }));
-  app.use(express.json());
+  // HATA ÇÖZÜMÜ: express.json() yerine direkt import edilen json() kullanıyoruz
+  app.use(urlencoded({ extended: true }));
+  app.use(json());
 
- 
+  // --- ROUTES (Eksik olan kısım burasıydı) ---
+  app.use('/products', productRouter);
+  app.use('/warehouses', warehouseRouter);
+  app.use('/transfers', transferRouter);
+  app.use('/invoices', invoiceRouter);
+  app.use('/customers', customerRouter);
+  app.use('/logs', logRouter);
+  app.use('/csv', csvRouter);
+  app.use('/lots', lotRouter);
+
+  // --- Error Handler ---
+  app.use(errorHandler);
+
   return app;
 };
