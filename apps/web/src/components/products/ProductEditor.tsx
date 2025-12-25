@@ -49,14 +49,18 @@ export function ProductEditor({
     Object.fromEntries(source.lots.map((lot) => [lot.id, lot.quantity.toString()]));
   const buildLotNumberMap = (source: ProductSummary) =>
     Object.fromEntries(source.lots.map((lot) => [lot.id, lot.lotNumber]));
+  const buildLotBarcodeMap = (source: ProductSummary) =>
+    Object.fromEntries(source.lots.map((lot) => [lot.id, lot.barcode ?? '']));
 
   const [lotQuantityInputs, setLotQuantityInputs] = useState<Record<string, string>>(() => buildQuantityMap(product));
   const [lotNumberInputs, setLotNumberInputs] = useState<Record<string, string>>(() => buildLotNumberMap(product));
+  const [lotBarcodeInputs, setLotBarcodeInputs] = useState<Record<string, string>>(() => buildLotBarcodeMap(product));
   const [lotSaving, setLotSaving] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setLotQuantityInputs(buildQuantityMap(product));
     setLotNumberInputs(buildLotNumberMap(product));
+    setLotBarcodeInputs(buildLotBarcodeMap(product));
   }, [product.lots]);
 
   const dirty = useMemo(() => {
@@ -133,6 +137,10 @@ export function ProductEditor({
     setLotNumberInputs((prev) => ({ ...prev, [lotId]: value }));
   };
 
+  const handleLotBarcodeChange = (lotId: string, value: string) => {
+    setLotBarcodeInputs((prev) => ({ ...prev, [lotId]: value }));
+  };
+
   const syncProductCaches = (updated: ProductSummary) => {
     queryClient.setQueryData<ProductSummary>(['product', updated.id], updated);
     queryClient.setQueryData<ProductSummary[]>(['products'], (previous) =>
@@ -146,6 +154,9 @@ export function ProductEditor({
   const handleLotQuantitySave = async (lotId: string) => {
     const rawValue = lotQuantityInputs[lotId];
     const lotNumberValue = (lotNumberInputs[lotId] ?? '').trim();
+    const targetLot = lots.find((item) => item.id === lotId);
+    const barcodeValue = (lotBarcodeInputs[lotId] ?? targetLot?.barcode ?? '').trim();
+    const normalizedBarcode = barcodeValue === '' ? null : barcodeValue;
     const parsedValue = Number(rawValue);
 
     if (!Number.isFinite(parsedValue) || parsedValue < 0) {
@@ -168,11 +179,13 @@ export function ProductEditor({
         body: {
           quantity: parsedValue,
           lotNumber: lotNumberValue,
+          barcode: normalizedBarcode,
         },
       });
 
       setLotQuantityInputs(buildQuantityMap(updated.product));
       setLotNumberInputs(buildLotNumberMap(updated.product));
+      setLotBarcodeInputs(buildLotBarcodeMap(updated.product));
       syncProductCaches(updated.product);
       toast.success('Lot stok bilgisi güncellendi');
     } catch (error) {
@@ -425,14 +438,24 @@ export function ProductEditor({
                 </div>
                 {canEditStock ? (
                   <div className="space-y-3 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3 text-xs text-slate-300 sm:text-sm">
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <label className="flex flex-col gap-1 text-slate-400">
                         Lot Numarası
                         <input
                           type="text"
-                        value={lotNumberInputs[lot.id] ?? lot.lotNumber}
-                        onChange={(event) => handleLotNumberChange(lot.id, event.target.value)}
+                          value={lotNumberInputs[lot.id] ?? lot.lotNumber}
+                          onChange={(event) => handleLotNumberChange(lot.id, event.target.value)}
                           className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 font-mono text-xs text-slate-300 sm:text-sm"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-slate-400">
+                        Barkod
+                        <input
+                          type="text"
+                          value={lotBarcodeInputs[lot.id] ?? lot.barcode ?? ''}
+                          onChange={(event) => handleLotBarcodeChange(lot.id, event.target.value)}
+                          className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 font-mono text-xs text-slate-300 sm:text-sm"
+                          placeholder="Opsiyonel"
                         />
                       </label>
                       <label className="flex flex-col gap-1 text-slate-400">
@@ -440,7 +463,7 @@ export function ProductEditor({
                         <input
                           type="number"
                           min={0}
-                        value={lotQuantityInputs[lot.id] ?? lot.quantity.toString()}
+                          value={lotQuantityInputs[lot.id] ?? lot.quantity.toString()}
                           onChange={(event) => handleLotQuantityChange(lot.id, event.target.value)}
                           className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
                         />

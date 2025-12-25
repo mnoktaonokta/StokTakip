@@ -12,17 +12,21 @@ const router = Router();
 const updateLotQuantitySchema = z.object({
   quantity: z.number().int().min(0, 'Stok miktarı negatif olamaz'),
   lotNumber: z.string().min(1, 'Lot numarası zorunlu').optional(),
+  barcode: z.string().optional().nullable(),
 });
 
 router.patch('/:lotId', requireStockManager, async (req, res, next) => {
   try {
     const body = updateLotQuantitySchema.parse(req.body);
+    const lotNumber = body.lotNumber?.trim();
+    const normalizedBarcode = body.barcode?.trim() ?? null;
 
     const lot = await prisma.lot.update({
       where: { id: req.params.lotId },
       data: {
         quantity: body.quantity,
-        ...(body.lotNumber ? { lotNumber: body.lotNumber } : {}),
+        ...(lotNumber ? { lotNumber } : {}),
+        ...(body.barcode !== undefined ? { barcode: normalizedBarcode || null } : {}),
       },
       include: {
         product: {

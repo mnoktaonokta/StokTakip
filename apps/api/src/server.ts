@@ -46,6 +46,10 @@ export const createServer = () => {
   app.use(urlencoded({ extended: true }));
   app.use(json());
 
+  // --- AUTH ---
+  // Clerk token doğrulaması + currentUser bağlama
+  app.use(clerkAuthMiddleware, attachCurrentUser);
+
   // --- ROUTES ---
   app.use('/api/products', productRouter);
   app.use('/api/warehouses', warehouseRouter);
