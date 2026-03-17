@@ -1,7 +1,7 @@
 const rawApiBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? 'http://localhost:4000';
 
-const normalizeApiBaseUrl = (value: string) => value.replace(/\/api\/?$/, '');
+const normalizeApiBaseUrl = (value: string) => value.replace(/(?:\/api)+\/?$/, '');
 
 export const API_URL = normalizeApiBaseUrl(rawApiBaseUrl);
 export const DEV_USER_ID = process.env.NEXT_PUBLIC_DEV_USER_ID ?? 'user_35nxaESVVF7clNFwJgOVcU3xHW2';
