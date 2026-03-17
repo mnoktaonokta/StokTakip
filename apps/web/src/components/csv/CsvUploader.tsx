@@ -28,7 +28,7 @@ export function CsvUploader() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('warehouseId', warehouseId);
-      await apiFetch('/csv/upload', {
+      await apiFetch('/api/csv/upload', {
         method: 'POST',
         headers: {
           'x-user-role': 'admin',

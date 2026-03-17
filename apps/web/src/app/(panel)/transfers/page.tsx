@@ -409,7 +409,7 @@ export default function TransferPage() {
       const formData = new FormData();
       formData.append('file', excelFile);
       formData.append('warehouseId', excelWarehouseId);
-      await apiFetch('/csv/upload', {
+      await apiFetch('/api/csv/upload', {
         method: 'POST',
         headers: {
           'x-user-role': 'admin',
