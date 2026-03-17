@@ -3,7 +3,7 @@
 import { ChangeEvent, useState } from 'react';
 import { toast } from 'sonner';
 
-import { API_URL, DEV_USER_ID } from '@/lib/api-client';
+import { DEV_USER_ID } from '@/lib/api-client';
 import { apiFetch } from '@/lib/api-client/client';
 import type { ProductSummary } from '@/types/api';
 
@@ -28,8 +28,7 @@ export function CsvUploader() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('warehouseId', warehouseId);
-
-      const response = await fetch(`${API_URL}/api/csv/upload`, {
+      await apiFetch('/csv/upload', {
         method: 'POST',
         headers: {
           'x-user-role': 'admin',
@@ -37,10 +36,6 @@ export function CsvUploader() {
         },
         body: formData,
       });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
 
       toast.success('CSV başarıyla yüklendi');
       setFile(null);

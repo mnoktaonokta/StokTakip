@@ -6,7 +6,7 @@ import { ClerkLoaded, UserButton } from '@clerk/nextjs';
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { API_URL, DEV_USER_ID } from '@/lib/api-client';
+import { DEV_USER_ID } from '@/lib/api-client';
 import { apiFetch } from '@/lib/api-client/client';
 import { LogModal } from '@/components/logs/LogModal';
 import { Trash2 } from 'lucide-react';
@@ -409,8 +409,7 @@ export default function TransferPage() {
       const formData = new FormData();
       formData.append('file', excelFile);
       formData.append('warehouseId', excelWarehouseId);
-
-      const response = await fetch(`${API_URL}/api/csv/upload`, {
+      await apiFetch('/csv/upload', {
         method: 'POST',
         headers: {
           'x-user-role': 'admin',
@@ -418,10 +417,6 @@ export default function TransferPage() {
         },
         body: formData,
       });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
 
       toast.success('Excel dosyası başarıyla içe aktarıldı');
       setExcelFile(null);
