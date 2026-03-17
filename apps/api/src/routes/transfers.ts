@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ActionType, TransferStatus, UserRole, WarehouseType } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
-import { autoSelectLot, adjustStock } from '../services/stockService';
+import { adjustStock } from '../services/stockService';
 import { recordLog } from '../services/logService';
 
 const router = Router();
@@ -43,12 +43,13 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const body = transferSchema.parse(req.body);
-    const { fromWarehouseId, toWarehouseId, quantity, barcode, notes } = body;
+    const { fromWarehouseId, toWarehouseId, quantity, notes } = body;
 
-    const lot =
-      body.lotId && body.lotId !== ''
-        ? await prisma.lot.findUnique({ where: { id: body.lotId } })
-        : await autoSelectLot({ productId: body.productId, barcode });
+    if (!body.lotId || body.lotId === '') {
+      return res.status(400).json({ message: 'Transfer için Lot seçimi zorunludur' });
+    }
+
+    const lot = await prisma.lot.findUnique({ where: { id: body.lotId } });
 
     if (!lot) {
       return res.status(404).json({ message: 'Lot bulunamadı' });

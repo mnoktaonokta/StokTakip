@@ -201,20 +201,6 @@ export default function TransferPage() {
     }
   }, [excelWarehouseId, fromWarehouseId]);
 
-  useEffect(() => {
-    if (!lookupResult) {
-      setSelectedLotId(undefined);
-      return;
-    }
-
-    if (selectedLotId && availableLots.some((lot) => lot.id === selectedLotId)) {
-      return;
-    }
-
-    const defaultLotId = availableLots[0]?.id;
-    setSelectedLotId(defaultLotId);
-  }, [lookupResult, availableLots, selectedLotId]);
-
   const selectedLot = useMemo(() => {
     return availableLots.find((lot) => lot.id === selectedLotId) ?? null;
   }, [availableLots, selectedLotId]);
@@ -242,6 +228,7 @@ export default function TransferPage() {
   // Listeye ekleme butonu aktif mi?
   const canAddToItems = Boolean(
     lookupResult?.product.id &&
+      selectedLotId &&
       selectedLot &&
       currentQuantity > 0 &&
       currentQuantity <= maxTransferQuantity
@@ -657,6 +644,7 @@ export default function TransferPage() {
                                         onChange={(event) => setSelectedLotId(event.target.value)}
                                         className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 p-3 text-white focus:ring-cyan-500"
                                     >
+                                        <option value="">Lütfen Lot Seçiniz</option>
                                         {availableLots.map((lot) => (
                                         <option key={lot.id} value={lot.id}>
                                             Lot {lot.lotNumber} • Mevcut: {lot.warehouseQuantity}

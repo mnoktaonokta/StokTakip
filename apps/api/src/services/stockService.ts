@@ -93,45 +93,6 @@ export const getProductStockSummary = async () => {
   });
 };
 
-export const findLotByBarcode = async (barcode: string) => {
-  return prisma.lot.findFirst({
-    where: {
-      barcode,
-    },
-    include: {
-      product: true,
-    },
-  });
-};
-
-interface AutoSelectLotParams {
-  productId: string;
-  barcode?: string;
-}
-
-export const autoSelectLot = async ({ productId, barcode }: AutoSelectLotParams) => {
-  if (barcode) {
-    const lotByBarcode = await findLotByBarcode(barcode);
-    if (lotByBarcode) {
-      return lotByBarcode;
-    }
-  }
-
-  const lots = await prisma.lot.findMany({
-    where: { productId },
-    orderBy: [
-      {
-        expiryDate: Prisma.SortOrder.asc,
-      },
-      {
-        createdAt: Prisma.SortOrder.asc,
-      },
-    ],
-  });
-
-  return lots.at(0) ?? null;
-};
-
 const getMainWarehouse = async () => {
   return prisma.warehouse.findFirst({
     where: { type: WarehouseType.MAIN },

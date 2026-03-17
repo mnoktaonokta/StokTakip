@@ -67,8 +67,9 @@ const parseQuantity = (raw: string | undefined) => {
 
 const buildDedupKey = (row: CsvRow) => {
   const barcode = row.barcode?.trim();
-  if (barcode) return `barcode:${barcode}`;
-  return `lot:${row.reference_code}::${row.lot_number}`;
+  const lotNumber = row.lot_number?.trim();
+  if (barcode) return `barcode:${barcode}::lot:${lotNumber}`;
+  return `lot:${row.reference_code}::${lotNumber}`;
 };
 
 const dedupeRows = (rows: CsvRow[]) => {
@@ -154,17 +155,13 @@ const processInventoryRows = async (rows: CsvRow[], options: CsvImportOptions): 
         },
       });
 
-      const lotWhere = barcode
-        ? ({ barcode } as const)
-        : ({
-            productId_lotNumber: {
-              productId: product.id,
-              lotNumber: row.lot_number,
-            },
-          } as const);
-
       const lot = await prisma.lot.upsert({
-        where: lotWhere,
+        where: {
+          productId_lotNumber: {
+            productId: product.id,
+            lotNumber: row.lot_number,
+          },
+        },
         create: {
           productId: product.id,
           lotNumber: row.lot_number,
