@@ -76,7 +76,7 @@ router.post('/', async (req, res, next) => {
         lotId: lot.id,
         quantity,
         createdByUserId: req.currentUser?.id ?? (await ensureDefaultUser()),
-        barcodeScanned: Boolean(barcode),
+        barcodeScanned: false,
         status,
         notes,
       },
@@ -93,7 +93,7 @@ router.post('/', async (req, res, next) => {
       transferId: transfer.id,
       actionType: toWarehouse.type === WarehouseType.CUSTOMER ? ActionType.TRANSFER_OUT : ActionType.TRANSFER_IN,
       description: `${quantity} adet ${lot.lotNumber} lot transfer edildi`,
-      barcodeUsed: Boolean(barcode),
+      barcodeUsed: false,
     });
 
     return res.status(201).json(transfer);
