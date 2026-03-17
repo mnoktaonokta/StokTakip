@@ -27,12 +27,12 @@ router.post('/upload', requireCsvUploader, upload.single('file'), async (req, re
 
     const importer = isExcel ? importInventoryExcel : importInventoryCsv;
 
-    await importer(req.file.buffer, {
+    const result = await importer(req.file.buffer, {
       warehouseId: body.warehouseId,
       createdByUserId: req.currentUser?.id ?? 'system',
     });
 
-    return res.json({ success: true, format: isExcel ? 'excel' : 'csv' });
+    return res.json({ success: true, format: isExcel ? 'excel' : 'csv', result });
   } catch (error) {
     return next(error);
   }

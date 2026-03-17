@@ -26,6 +26,23 @@ interface CsvImportOptions {
   createdByUserId: string;
 }
 
+export interface InventoryImportError {
+  key: string;
+  referenceCode?: string;
+  lotNumber?: string;
+  barcode?: string;
+  message: string;
+}
+
+export interface InventoryImportResult {
+  totalRows: number;
+  dedupedRows: number;
+  skippedRows: number;
+  succeededRows: number;
+  failedRows: number;
+  errors: InventoryImportError[];
+}
+
 const ensureUploaderUserExists = async (userId: string) => {
   if (!userId) {
     return;
@@ -42,84 +59,163 @@ const ensureUploaderUserExists = async (userId: string) => {
   });
 };
 
-const processInventoryRows = async (rows: CsvRow[], options: CsvImportOptions) => {
-  await ensureUploaderUserExists(options.createdByUserId);
+const parseQuantity = (raw: string | undefined) => {
+  const normalized = (raw ?? '').toString().trim().replace(',', '.');
+  const value = Number(normalized);
+  return Number.isFinite(value) ? Math.trunc(value) : 0;
+};
+
+const buildDedupKey = (row: CsvRow) => {
+  const barcode = row.barcode?.trim();
+  if (barcode) return `barcode:${barcode}`;
+  return `lot:${row.reference_code}::${row.lot_number}`;
+};
+
+const dedupeRows = (rows: CsvRow[]) => {
+  const map = new Map<string, CsvRow & { __key: string; __quantity: number }>();
+  let skipped = 0;
 
   for (const row of rows) {
-    if (!row.reference_code || !row.lot_number) continue;
+    if (!row.reference_code || !row.lot_number) {
+      skipped += 1;
+      continue;
+    }
 
-    const brand = row.brand?.trim() || undefined;
-    const isActive =
-      row.is_active && row.is_active.trim().length > 0
-        ? row.is_active.trim().toUpperCase().startsWith('A')
-        : true;
-    const criticalStockLevelRaw = row.critical_stock?.replace(',', '.');
-    const criticalStockLevel =
-      criticalStockLevelRaw && criticalStockLevelRaw.trim().length > 0
-        ? Number(criticalStockLevelRaw)
-        : undefined;
+    const key = buildDedupKey(row);
+    const qty = parseQuantity(row.quantity);
 
-    const product = await prisma.product.upsert({
-      where: { referenceCode: row.reference_code },
-      create: {
-        referenceCode: row.reference_code,
-        name: row.name ?? row.reference_code,
-        brand,
-        category: row.category,
-        salePrice: row.sale_price ? Number(row.sale_price) : undefined,
-        // purchase price removed
-        isActive,
-        criticalStockLevel: Number.isFinite(criticalStockLevel ?? NaN) ? criticalStockLevel : undefined,
-      },
-      update: {
-        name: row.name ?? undefined,
-        brand: brand ?? undefined,
-        category: row.category ?? undefined,
-        salePrice: row.sale_price ? Number(row.sale_price) : undefined,
-        // purchase price removed
-        isActive,
-        criticalStockLevel: Number.isFinite(criticalStockLevel ?? NaN) ? criticalStockLevel : undefined,
-      },
-    });
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...row, __key: key, __quantity: qty, quantity: String(qty) });
+      continue;
+    }
 
-    const lot = await prisma.lot.upsert({
-      where: {
-        productId_lotNumber: {
+    const nextQty = existing.__quantity + qty;
+    existing.__quantity = nextQty;
+    existing.quantity = String(nextQty);
+
+    // Prefer to keep a barcode if either row has it
+    existing.barcode = existing.barcode?.trim() ? existing.barcode : row.barcode;
+    // Prefer to keep a name if the original was missing
+    existing.name = existing.name ?? row.name;
+    // Keep other optional fields if missing
+    existing.brand = existing.brand ?? row.brand;
+    existing.category = existing.category ?? row.category;
+    existing.sale_price = existing.sale_price ?? row.sale_price;
+    existing.is_active = existing.is_active ?? row.is_active;
+    existing.critical_stock = existing.critical_stock ?? row.critical_stock;
+    existing.expiry_date = existing.expiry_date ?? row.expiry_date;
+  }
+
+  return { rows: Array.from(map.values()), skippedRows: skipped };
+};
+
+const processInventoryRows = async (rows: CsvRow[], options: CsvImportOptions): Promise<InventoryImportResult> => {
+  await ensureUploaderUserExists(options.createdByUserId);
+
+  const { rows: deduped, skippedRows } = dedupeRows(rows);
+  const errors: InventoryImportError[] = [];
+  let succeededRows = 0;
+
+  for (const row of deduped) {
+    const quantity = parseQuantity(row.quantity);
+    const barcode = row.barcode?.trim() || undefined;
+
+    try {
+      const brand = row.brand?.trim() || undefined;
+      const isActive =
+        row.is_active && row.is_active.trim().length > 0
+          ? row.is_active.trim().toUpperCase().startsWith('A')
+          : true;
+      const criticalStockLevelRaw = row.critical_stock?.replace(',', '.');
+      const criticalStockLevel =
+        criticalStockLevelRaw && criticalStockLevelRaw.trim().length > 0
+          ? Number(criticalStockLevelRaw)
+          : undefined;
+
+      const product = await prisma.product.upsert({
+        where: { referenceCode: row.reference_code },
+        create: {
+          referenceCode: row.reference_code,
+          name: row.name ?? row.reference_code,
+          brand,
+          category: row.category,
+          salePrice: row.sale_price ? Number(row.sale_price) : undefined,
+          isActive,
+          criticalStockLevel: Number.isFinite(criticalStockLevel ?? NaN) ? criticalStockLevel : undefined,
+        },
+        update: {
+          name: row.name ?? undefined,
+          brand: brand ?? undefined,
+          category: row.category ?? undefined,
+          salePrice: row.sale_price ? Number(row.sale_price) : undefined,
+          isActive,
+          criticalStockLevel: Number.isFinite(criticalStockLevel ?? NaN) ? criticalStockLevel : undefined,
+        },
+      });
+
+      const lotWhere = barcode
+        ? ({ barcode } as const)
+        : ({
+            productId_lotNumber: {
+              productId: product.id,
+              lotNumber: row.lot_number,
+            },
+          } as const);
+
+      const lot = await prisma.lot.upsert({
+        where: lotWhere,
+        create: {
           productId: product.id,
           lotNumber: row.lot_number,
+          quantity,
+          barcode,
+          expiryDate: row.expiry_date ? dayjs(row.expiry_date).toDate() : undefined,
         },
-      },
-      create: {
-        productId: product.id,
+        update: {
+          quantity: { increment: quantity },
+          barcode: barcode ?? undefined,
+          expiryDate: row.expiry_date ? dayjs(row.expiry_date).toDate() : undefined,
+        },
+      });
+
+      const location = await ensureStockLocation(options.warehouseId, lot.id);
+      await prisma.stockLocation.update({
+        where: { id: location.id },
+        data: { quantity: { increment: quantity } },
+      });
+
+      await prisma.log.create({
+        data: {
+          userId: options.createdByUserId,
+          productId: product.id,
+          lotId: lot.id,
+          warehouseId: options.warehouseId,
+          actionType: 'CSV_IMPORT',
+          description: `CSV/Excel importu ile ${quantity} adet ürün işlendi`,
+        },
+      });
+
+      succeededRows += 1;
+    } catch (error) {
+      errors.push({
+        key: buildDedupKey(row),
+        referenceCode: row.reference_code,
         lotNumber: row.lot_number,
-        quantity: Number(row.quantity ?? 0),
-        barcode: row.barcode,
-        expiryDate: row.expiry_date ? dayjs(row.expiry_date).toDate() : undefined,
-      },
-      update: {
-        quantity: Number(row.quantity ?? 0),
-        barcode: row.barcode ?? undefined,
-        expiryDate: row.expiry_date ? dayjs(row.expiry_date).toDate() : undefined,
-      },
-    });
-
-    const location = await ensureStockLocation(options.warehouseId, lot.id);
-    await prisma.stockLocation.update({
-      where: { id: location.id },
-      data: { quantity: Number(row.quantity ?? 0) },
-    });
-
-    await prisma.log.create({
-      data: {
-        userId: options.createdByUserId,
-        productId: product.id,
-        lotId: lot.id,
-        warehouseId: options.warehouseId,
-        actionType: 'CSV_IMPORT',
-        description: `CSV/Excel importu ile ${row.quantity ?? 0} adet ürün işlendi`,
-      },
-    });
+        barcode,
+        message: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+    }
   }
+
+  return {
+    totalRows: rows.length,
+    dedupedRows: deduped.length,
+    skippedRows,
+    succeededRows,
+    failedRows: errors.length,
+    errors,
+  };
 };
 
 const normalizeKey = (value: string) => {
@@ -221,9 +317,11 @@ export const importInventoryCsv = async (fileBuffer: Buffer, options: CsvImportO
     }
   }
 
-  const mappedRows = rawRows.map(mapRowToCsvRow).filter((row) => row.reference_code && row.lot_number);
+  const mappedRows = rawRows
+    .map(mapRowToCsvRow)
+    .filter((row: CsvRow) => row.reference_code && row.lot_number);
 
-  await processInventoryRows(mappedRows, options);
+  return await processInventoryRows(mappedRows, options);
 };
 
 export const importInventoryExcel = async (fileBuffer: Buffer, options: CsvImportOptions) => {
@@ -235,8 +333,10 @@ export const importInventoryExcel = async (fileBuffer: Buffer, options: CsvImpor
   }
 
   const worksheet = workbook.Sheets[sheetName];
-  const rawRows = utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
-  const mappedRows = rawRows.map(mapRowToCsvRow).filter((row) => row.reference_code && row.lot_number);
+  const rawRows = utils.sheet_to_json(worksheet, { defval: '' }) as Record<string, unknown>[];
+  const mappedRows = rawRows
+    .map(mapRowToCsvRow)
+    .filter((row: CsvRow) => row.reference_code && row.lot_number);
 
-  await processInventoryRows(mappedRows, options);
+  return await processInventoryRows(mappedRows, options);
 };
